@@ -6,7 +6,7 @@ let package = Package(
   name: "cineplay_pip",
   platforms: [.iOS("12.0")],
   products: [
-    .library(name: "f-videoplayer-pip", targets: ["cineplay_pip"])
+    .library(name: "cineplay-pip", targets: ["cineplay_pip"])
   ],
   targets: [
     .target(

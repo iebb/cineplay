@@ -1,174 +1,119 @@
-# F Video Player
+# Cineplay
 
-F Video Player is a reusable Flutter video-player stack with responsive,
-accessible controls and explicit integration points for product-specific
-navigation. It was extracted from Mithka so the player can evolve and be
-tested independently of one application.
+**A cross-platform Flutter video player built for desktop, mobile, and web.**
 
-The repository contains:
+[![CI](https://github.com/iebb/cineplay/actions/workflows/ci.yml/badge.svg)](https://github.com/iebb/cineplay/actions/workflows/ci.yml)
 
-- `cineplay`: the backend-neutral player UI, controller lifecycle,
-  playlists hooks, scrub previews, captions, volume, keyboard/pointer/touch
-  controls, fullscreen requests, and independent desktop windows.
-- `cineplay_pip`: native system Picture-in-Picture sessions on Android,
-  iOS, and macOS, including playback-state restoration and fractional volume.
-- `cineplay_fvp`: an optional FVP/libmdk adapter for Linux, Windows, and
-  deliberate backend overrides on other native platforms.
-- `third_party/fvp`: the pinned BSD-3-Clause FVP fork used by the adapter. It
-  contains source only; native MDK archives remain upstream downloads.
-- A buildable example for mobile, web, and desktop.
+Cineplay gives Flutter apps a fast, accessible, zero-Material/Cupertino video player core with replaceable chrome, chapter markers, scrub preview caching, keyboard-first desktop ergonomics, independent multi-window playback, optional hardware-accelerated FVP/MDK decoding, and native Picture-in-Picture.
 
-The default chrome uses foundational Flutter widgets and custom-painted
-glyphs. It has no Material or Cupertino dependency and can be replaced in full
-through immutable state plus safe player actions.
+---
 
-## Highlights
+## Packages
 
-- Network, asset, local-file, injected-controller, and asynchronous controller
-  factory sources.
-- Play/pause, replay, previous/next, seeking, buffering, captions, playback
-  speed, mute, and continuous volume controls across normal layouts.
-- Additive surface gestures, blocking/passive host overlays, one compact
-  bottom action, host buffering augmentation, and delegated system volume.
-- Controlled chrome suppression for native PiP capture plus independently
-  hideable built-in fullscreen and PiP buttons for a combined host mode action.
-- Responsive fallback that retains an accessible mute action when a tiny
-  embedded surface cannot physically fit a level slider.
-- Drag, double-tap, pointer, wheel, keyboard, focus, RTL, and screen-reader
-  interaction.
-- Provider-driven scrub thumbnails with time-only degradation when a backend
-  cannot decode preview frames. On Linux the FVP adapter decodes local files
-  with the FFmpeg that MDK bundles, so no system FFmpeg is required; add the
-  `fc_native_video_thumbnail` override from `third_party` (see
-  `THIRD_PARTY_NOTICES.md`) to also keep the upstream plugin's FFmpeg 6 link
-  out of the build.
-- Host-controlled fullscreen so applications can choose routes, orientation,
-  system UI, or in-place layouts without fighting the player.
-- System PiP on Android 8+, iOS, and macOS where the OS reports it available.
-- Multiple concurrent native player windows on Linux, macOS, and Windows.
-- Optional FVP backend with typed configuration and a local-WebM alpha route
-  for Android applications that need it.
+| Package | Purpose | Path |
+| --- | --- | --- |
+| **`cineplay`** | Core video player widget, timeline slider with chapter markers, LRU scrub thumbnail cache, keyboard shortcuts, and independent desktop windows. Pure Flutter (`flutter/widgets.dart` only). | [`packages/cineplay`](packages/cineplay) |
+| **`cineplay_fvp`** | Optional [FVP / libmdk](https://github.com/wang-bin/fvp) backend adapter for hardware-accelerated multi-codec playback, embedded audio & subtitle tracks, container chapters, exact frame stepping, PNG snapshots, and Linux FFmpeg thumbnails. | [`packages/cineplay_fvp`](packages/cineplay_fvp) |
+| **`cineplay_pip`** | Optional native Picture-in-Picture plugin for Android 8+, iOS (`AVKit`), and macOS (`AVKit`) with play/pause actions and restore-to-app snapshots. | [`packages/cineplay_pip`](packages/cineplay_pip) |
 
-## Platform support
+---
 
-| Platform | Default playback | Volume | Fullscreen contract | System PiP | Separate windows |
-| --- | --- | ---: | ---: | ---: | ---: |
-| Android | Flutter `video_player` | Yes | Yes | Android 8+ | No |
-| iOS | Flutter `video_player` | Yes | Yes | Yes | No |
-| macOS | Flutter `video_player` or FVP | Yes | Yes | Yes | Yes |
-| Web | Flutter `video_player_web` | Yes | Yes | Host/browser integration | No |
-| Windows | FVP | Yes | Yes | Host mini-player | Yes |
-| Linux | FVP | Yes | Yes | Host mini-player | Yes |
+## Platform Support
 
-“Fullscreen contract” means the player renders the control and invokes the
-host's asynchronous callback. Route selection, orientation, and window policy
-remain under application control. “Host mini-player” is intentionally not
-called system PiP: Windows and Linux do not expose the same native Flutter
-contract used on Android and Apple platforms.
+| Platform | Core Player (`cineplay`) | FVP/MDK Backend (`cineplay_fvp`) | Native PiP (`cineplay_pip`) | Detached Windows |
+| --- | :---: | :---: | :---: | :---: |
+| **macOS** | Yes | Yes | Yes (`AVKit`) | Yes (+ Always-on-Top) |
+| **Windows** | Yes | Yes | Host fallback | Yes (+ Always-on-Top) |
+| **Linux** | Yes | Yes (+ bundled FFmpeg thumbnails) | Host fallback | Yes (+ Always-on-Top) |
+| **iOS** | Yes | Yes | Yes (`AVKit`) | — |
+| **Android** | Yes | Yes (+ alpha WebM routing) | Yes (Android 8+) | — |
+| **Web** | Yes | No-op stub (uses HTML5 video) | Host fallback | — |
+| **HarmonyOS** | Yes | Yes | — | — |
 
-## Install from Git
+---
 
-Pin all packages and the FVP override to the same release tag. The adapter's
-core dependency deliberately uses that tag too, which keeps Pub's Git source
-identity consistent across the monorepo packages:
+## Key Capabilities
+
+- **Zero UI-kit lock-in**: Core `cineplay` depends only on `flutter/widgets.dart` (enforced by automated design-policy tests)—no Material, Cupertino, or icon-font dependencies.
+- **Replaceable chrome**: Use the built-in high-contrast accessible chrome or pass `chromeBuilder` to render your own UI against an immutable `FVideoChromeSnapshot` and safe `FVideoActions` facade.
+- **Desktop-grade controls & shortcuts**:
+  - `Space` / `K` play/pause · `J` / `L` / `←` / `→` seek · `↑` / `↓` volume · `M` mute
+  - `0`–`9` jump to 0%–90% · `[` / `]` playback speed · `Backspace` reset to 1×
+  - `,` / `.` frame-by-frame step · `R` rotate 90° · `Z` toggle Fit/Fill
+  - `F` fullscreen · `P` Picture-in-Picture · `Esc` exit fullscreen/PiP/close
+- **Chapters & timestamp parsing**: `FVideoChapter.parseFromText` turns `mm:ss` / `h:mm:ss` descriptions into timeline tick markers and active chapter state.
+- **Smooth scrubbing**: `FVideoThumbnailCache` quantizes scrub positions into LRU buckets and deduplicates in-flight decodes.
+- **Reliable auto-hide**: Ignores stationary/sub-pixel pointer jitter on desktop, hides promptly on pointer exit, and always honors explicit tap/click hiding even when system accessibility services are active.
+- **Independent desktop windows**: Open multiple native player windows on macOS, Windows, and Linux with fullscreen and always-on-top pinning via `FVideoDesktopWindows`.
+
+---
+
+## Quick Start
 
 ```yaml
 dependencies:
-  cineplay:
-    git:
-      url: https://github.com/iebb/cineplay.git
-      ref: v0.5.11
-      path: packages/cineplay
-  cineplay_pip:
-    git:
-      url: https://github.com/iebb/cineplay.git
-      ref: v0.5.11
-      path: packages/cineplay_pip
-
-# Add only when the final application uses FVP.
-  cineplay_fvp:
-    git:
-      url: https://github.com/iebb/cineplay.git
-      ref: v0.5.11
-      path: packages/cineplay_fvp
-  fvp: ^0.37.3
-
-dependency_overrides:
-  fvp:
-    git:
-      url: https://github.com/iebb/cineplay.git
-      ref: v0.5.11
-      path: third_party/fvp
+  cineplay: ^0.7.0
+  # Optional: hardware-accelerated desktop/cross-platform decoding & tracks
+  cineplay_fvp: ^0.7.0
+  # Optional: native Android/iOS/macOS Picture-in-Picture
+  cineplay_pip: ^0.7.0
 ```
-
-Applications using only the official Android, iOS, macOS, and web backends
-should omit both FVP entries so its native runtime is not added to artifacts.
-
-Apple applications that use this FVP fork must prepare the local MDK framework
-before Flutter/SwiftPM resolves native packages. Run the resolved FVP package's
-`darwin/fvp/tool/mdk_apple_freshness.py` with `--destination
-darwin/fvp/mdk.xcframework refresh`, followed by `check`. See the
-[Apple SDK preparation instructions](third_party/fvp/README.md#upgrade-dependencies-manually)
-for source selection and required digests. The example CI performs both steps.
-This prevents new builds from using an expired SDK; it does not extend the
-key-free lifetime of the SDK inside an already installed app.
-
-For development from `master` or a specific commit, add an application-level
-`dependency_overrides` entry for `cineplay` using the same Git ref. Pub
-otherwise treats a tag, branch, and commit as distinct sources even when they
-resolve to the same object.
-
-## Basic player
 
 ```dart
-FVideoPlayer(
-  source: const FVideoSource.network('https://media.example/video.mp4'),
-  autoplay: false,
-  onPrevious: playPrevious,
-  onNext: playNext,
-  onToggleFullscreen: toggleFullscreen,
-)
+import 'package:cineplay/cineplay.dart';
+import 'package:flutter/widgets.dart';
+
+class PlayerScreen extends StatelessWidget {
+  const PlayerScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return FVideoPlayer(
+      source: const FVideoSource.network('https://example.com/movie.mp4'),
+      autofocus: true,
+      enableScrollVolume: true,
+      chapters: FVideoChapter.parseFromText('''
+        0:00 Opening
+        01:30 Main Story
+        05:00 Credits
+      '''),
+    );
+  }
+}
 ```
 
-See [`packages/cineplay/README.md`](packages/cineplay/README.md) for
-the complete chrome, source, lifecycle, window, and accessibility APIs.
+---
 
-## Picture in Picture
+## Repository Structure
 
-The PiP package preserves position, play state, speed, mute, and normalized
-volume. Android keeps the existing Flutter activity/texture in PiP. Apple
-platforms hand playback to AVKit; the optional FVP fork can use its active
-iOS player instead of opening a second decoder.
-
-Android hosts must opt the activity into PiP in the manifest and forward its
-lifecycle callbacks. The exact implementation is documented in
-[`packages/cineplay_pip/README.md`](packages/cineplay_pip/README.md).
-
-## DRM status
-
-DRM is architecturally possible, but it is not part of v0.5.0. Secure playback
-requires separate platform backends: Media3/Widevine on Android,
-AVFoundation/FairPlay on Apple platforms, EME on web, and PlayReady or a
-browser-backed CDM on Windows. FVP/FFmpeg is not treated as a secure DRM path.
-
-See [`docs/DRM.md`](docs/DRM.md) for the support matrix, proposed API, output
-restrictions, credential handling, and implementation roadmap.
-
-## Development
-
-```sh
-cd packages/cineplay && flutter pub get && flutter test
-cd ../cineplay_fvp && flutter pub get && flutter test
-cd ../cineplay_pip && flutter pub get && flutter test
-cd ../cineplay/example && flutter pub get && flutter test
+```text
+packages/
+  cineplay/           # Core player package + multi-platform example app
+  cineplay_fvp/       # Optional FVP/MDK backend & FvpControllerBridge
+  cineplay_pip/       # Optional native PiP plugin (Android, iOS, macOS)
+third_party/
+  fvp/                # Vendored FVP bridge with verified Apple MDK tooling
+  fc_native_video_thumbnail/
 ```
 
-CI additionally analyzes every package and compile-smokes Android, iOS, web,
-Linux, macOS, and Windows examples.
+---
+
+## Development & Testing
+
+```bash
+# Core package
+cd packages/cineplay && flutter analyze --fatal-infos && flutter test
+
+# FVP adapter
+cd packages/cineplay_fvp && flutter analyze --fatal-infos && flutter test
+
+# PiP plugin
+cd packages/cineplay_pip && flutter analyze --fatal-infos && flutter test
+
+# Example app
+cd packages/cineplay/example && flutter analyze --fatal-infos && flutter test
+```
 
 ## License
 
-Original project code is BSD-3-Clause. The FVP fork keeps Wang Bin's upstream
-BSD-3-Clause notice. libmdk and its downloaded native dependencies are not
-relicensed by this repository. Read [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
-before distributing native artifacts.
+BSD-3-Clause. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

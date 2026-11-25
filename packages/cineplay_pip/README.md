@@ -1,57 +1,58 @@
 # cineplay_pip
 
-Native Picture-in-Picture sessions for F Video Player.
+Optional native Picture-in-Picture (PiP) plugin for [`cineplay`](https://pub.dev/packages/cineplay).
 
-The Dart API is backend-neutral and carries source URI, playback position,
-speed, normalized volume, mute state, video size, source rectangle, and
-localized play/pause labels. Session callbacks report entry, restoration,
-remote play/pause actions, and final position.
+Provides a backend-neutral Dart session API that carries source URI, playback position, speed, normalized volume, mute state, video dimensions, source rectangle, and localized play/pause labels across native PiP transitions.
 
-## Support
+---
 
-- Android 8+: the existing activity and Flutter texture enter system PiP.
-- iOS: AVKit uses the active FVP player when available, otherwise a synchronized
-  AVPlayer session for the same URI.
-- macOS: AVKit uses a synchronized AVPlayer session.
-- Web, Windows, and Linux: `isSupported()` returns false. Hosts can implement
-  browser PiP or an always-on-top mini-player through the core presentation
-  callbacks without misrepresenting it as this native contract.
+## Platform Support
 
-## Protected content
+- **Android 8+**: Enters Android system PiP with the active Flutter activity/texture, auto-enter on Android 12+, and system play/pause action buttons.
+- **iOS**: Uses `AVKit` PiP backed by the active FVP player when available, or a synchronized `AVPlayer` fallback for the same URI.
+- **macOS**: Uses `AVKit` PiP with a synchronized `AVPlayer` session.
+- **Web, Windows, Linux**: `isSupported()` returns `false` so hosts can fall back to browser PiP or `FVideoDesktopWindows.setCurrentWindowAlwaysOnTop(true)`.
 
-v0.5.0 does not configure FairPlay, Widevine, PlayReady, license challenges, or
-protected offline keys. Protected-content PiP therefore requires a future
-DRM-capable active backend and a positive runtime capability decision; the URI
-fallback alone is not a DRM handoff.
+---
 
-## Android host integration
+## Installation
 
-Set `android:supportsPictureInPicture="true"` on the Flutter activity. Forward
-the following activity callbacks to `FVideoPictureInPicturePlugin`:
+```yaml
+dependencies:
+  cineplay_pip: ^0.7.0
+```
 
-- `onStart`, `onResume`, `onPause`, `onStop`, and `onDestroy`
+## Android Setup
+
+Add `android:supportsPictureInPicture="true"` to your `MainActivity` in `AndroidManifest.xml`, and forward lifecycle callbacks to `com.iebb.cineplay_pip.FVideoPictureInPicturePlugin`:
+
+- `onStart`, `onResume`, `onPause`, `onStop`, `onDestroy`
 - `onUserLeaveHint`
 - `onPictureInPictureRequested`
 - `onPictureInPictureModeChanged`
 
-The repository example contains the complete Kotlin implementation. Android
-12+ uses auto-enter parameters; Android 8–11 use the forwarded leave/request
-callbacks. The plugin verifies the system feature and AppOps permission before
-advertising support.
+See [`packages/cineplay/example`](../cineplay/example) for a complete Kotlin example.
 
-## Start a session
+## iOS Setup
+
+Enable **Audio, AirPlay, and Picture in Picture** under Signing & Capabilities → Background Modes.
+
+---
+
+## Usage
 
 ```dart
+import 'package:cineplay_pip/cineplay_pip.dart';
+
 final started = await FVideoPictureInPicture.start(
-  id: 'episode-42',
-  uri: Uri.parse('https://media.example/episode-42.m3u8'),
+  id: 'video-42',
+  uri: Uri.parse('https://example.com/video.mp4'),
   position: controller.value.position,
   speed: controller.value.playbackSpeed,
   volume: controller.value.volume,
   muted: controller.value.volume == 0,
   playing: controller.value.isPlaying,
   videoSize: controller.value.size,
-  playerId: controller.playerId,
   onActionRequested: (action) async {
     switch (action) {
       case FVideoPictureInPictureAction.play:
@@ -69,17 +70,6 @@ final started = await FVideoPictureInPicture.start(
 );
 ```
 
-Call `updatePrepared` as state changes when using prewarming, and call
-`cancelPrepared` when a route or media item is disposed.
-
-## Apple capabilities
-
-iOS applications must enable the Audio, AirPlay, and Picture in Picture
-background mode. The AVPlayer fallback needs a URI that the native player can
-open with the same authorization; applications with short-lived or custom
-authorization should prefer an injected/active backend or provide a signed
-playback URI.
-
 ## License
 
-BSD-3-Clause. See the repository notice for optional FVP/libmdk terms.
+BSD-3-Clause.
