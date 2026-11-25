@@ -17,6 +17,8 @@ class FVideoSlider extends StatefulWidget {
     this.onChangeEnd,
     this.bufferedValue,
     this.bufferedColor,
+    this.markerFractions = const [],
+    this.markerColor,
     this.semanticLabel,
     this.semanticValue,
     this.semanticIncreasedValue,
@@ -33,6 +35,10 @@ class FVideoSlider extends StatefulWidget {
   final Color activeColor;
   final Color inactiveColor;
   final Color? bufferedColor;
+
+  /// Optional normalized positions (`0.0..1.0`) for chapter/timestamp markers.
+  final List<double> markerFractions;
+  final Color? markerColor;
   final ValueChanged<double>? onChangeStart;
   final ValueChanged<double>? onChanged;
   final ValueChanged<double>? onChangeEnd;
@@ -297,6 +303,8 @@ class _FVideoSliderState extends State<FVideoSlider> {
                     activeColor: widget.activeColor,
                     inactiveColor: widget.inactiveColor,
                     bufferedColor: widget.bufferedColor,
+                    markerFractions: widget.markerFractions,
+                    markerColor: widget.markerColor,
                     enabled: enabled,
                     focused: _focused,
                     textDirection: textDirection,
@@ -321,6 +329,8 @@ class _FVideoSliderPainter extends CustomPainter {
     required this.activeColor,
     required this.inactiveColor,
     required this.bufferedColor,
+    required this.markerFractions,
+    required this.markerColor,
     required this.enabled,
     required this.focused,
     required this.textDirection,
@@ -333,6 +343,10 @@ class _FVideoSliderPainter extends CustomPainter {
   final Color activeColor;
   final Color inactiveColor;
   final Color? bufferedColor;
+
+  /// Optional normalized positions (`0.0..1.0`) for chapter/timestamp markers.
+  final List<double> markerFractions;
+  final Color? markerColor;
   final bool enabled;
   final bool focused;
   final TextDirection textDirection;
@@ -381,6 +395,25 @@ class _FVideoSliderPainter extends CustomPainter {
         activeColor,
         textDirection,
       );
+    }
+    if (markerFractions.isNotEmpty) {
+      final tickPaint = Paint()..color = markerColor ?? const Color(0xCC000000);
+      final tickHalfHeight = (trackHeight + 2) / 2;
+      for (final fraction in markerFractions) {
+        if (!fraction.isFinite || fraction <= 0 || fraction >= 1) continue;
+        final x = textDirection == TextDirection.ltr
+            ? left + (right - left) * fraction
+            : right - (right - left) * fraction;
+        canvas.drawRect(
+          Rect.fromLTRB(
+            x - 0.75,
+            centerY - tickHalfHeight,
+            x + 0.75,
+            centerY + tickHalfHeight,
+          ),
+          tickPaint,
+        );
+      }
     }
     if (focused) {
       canvas.drawCircle(
@@ -433,7 +466,18 @@ class _FVideoSliderPainter extends CustomPainter {
       oldDelegate.activeColor != activeColor ||
       oldDelegate.inactiveColor != inactiveColor ||
       oldDelegate.bufferedColor != bufferedColor ||
+      oldDelegate.markerColor != markerColor ||
+      !_sameMarkers(oldDelegate.markerFractions, markerFractions) ||
       oldDelegate.enabled != enabled ||
       oldDelegate.focused != focused ||
       oldDelegate.textDirection != textDirection;
+
+  static bool _sameMarkers(List<double> a, List<double> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 }

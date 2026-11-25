@@ -56,35 +56,38 @@ void main() {
     );
   });
 
-  test('Apple packaging refreshes MDK instead of pinning an expiring archive', () {
-    final manifest = File(
-      '../../third_party/fvp/darwin/fvp/Package.swift',
-    ).readAsStringSync();
-    final cmake = File(
-      '../../third_party/fvp/cmake/deps.cmake',
-    ).readAsStringSync();
+  test(
+    'Apple packaging refreshes MDK instead of pinning an expiring archive',
+    () {
+      final manifest = File(
+        '../../third_party/fvp/darwin/fvp/Package.swift',
+      ).readAsStringSync();
+      final cmake = File(
+        '../../third_party/fvp/cmake/deps.cmake',
+      ).readAsStringSync();
 
-    // libmdk's key-free path expires 44 days after its own build stamp, so an
-    // Apple binary target that names one archive is a latent
-    // "MDK SDK is outdated" QR frame. The build installs a verified SDK at the
-    // local path instead.
-    expect(manifest, contains('path: "mdk.xcframework"'));
-    expect(manifest, isNot(contains('mdk-nightly-2026-08-14')));
-    expect(manifest, isNot(contains('mdk.xcframework.zip')));
+      // libmdk's key-free path expires 44 days after its own build stamp, so an
+      // Apple binary target that names one archive is a latent
+      // "MDK SDK is outdated" QR frame. The build installs a verified SDK at the
+      // local path instead.
+      expect(manifest, contains('path: "mdk.xcframework"'));
+      expect(manifest, isNot(contains('mdk-nightly-2026-08-14')));
+      expect(manifest, isNot(contains('mdk.xcframework.zip')));
 
-    // Non-Apple archives keep their immutable nightly mirror and digests.
-    expect(cmake, contains('releases/download/mdk-nightly-2026-08-14'));
-    for (final digest in [
-      'e61c38782b13198732749caaca436b7c0e13d34cf8d9050f5e5505838ab5529b',
-      'c541fa13dd12e17414eb05e6a176f3fb40a93cc5c38aaf85dbce1cd68d2828f0',
-      '580c657e635023fe588a007fb8acf06d1e11c5c28fefe3ae3302850b8be2d800',
-      'de5a8ff0a104b220601775019b350810a73c13354571100b9a649b46faf33d3d',
-      'd89195411c42d213013f3e48f2ae707dffc6b750a73a56bdf7793dade582d6ae',
-      '0e0aee20b1c12cbc2e5b362ad028e556748a39ba9785a1065bed0dea1148a882',
-    ]) {
-      expect(cmake, contains(digest));
-    }
-  });
+      // Non-Apple archives keep their immutable nightly mirror and digests.
+      expect(cmake, contains('releases/download/mdk-nightly-2026-08-14'));
+      for (final digest in [
+        'e61c38782b13198732749caaca436b7c0e13d34cf8d9050f5e5505838ab5529b',
+        'c541fa13dd12e17414eb05e6a176f3fb40a93cc5c38aaf85dbce1cd68d2828f0',
+        '580c657e635023fe588a007fb8acf06d1e11c5c28fefe3ae3302850b8be2d800',
+        'de5a8ff0a104b220601775019b350810a73c13354571100b9a649b46faf33d3d',
+        'd89195411c42d213013f3e48f2ae707dffc6b750a73a56bdf7793dade582d6ae',
+        '0e0aee20b1c12cbc2e5b362ad028e556748a39ba9785a1065bed0dea1148a882',
+      ]) {
+        expect(cmake, contains(digest));
+      }
+    },
+  );
 
   test('the MDK freshness gate reads the binary stamp, not the release', () {
     final tool = File(

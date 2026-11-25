@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:video_player/video_player.dart';
 
+import 'video_models.dart';
 import 'video_slider.dart';
 import 'video_source.dart';
 import 'video_thumbnail.dart';
@@ -240,6 +241,28 @@ abstract interface class FVideoActions {
   void updateScrub(double fraction);
 
   Future<void> endScrub(double fraction);
+
+  Future<void> setLooping(bool looping);
+
+  Future<void> toggleLooping();
+
+  void setRotationQuarterTurns(int quarterTurns);
+
+  void rotateClockwise();
+
+  void setFit(BoxFit fit);
+
+  void toggleFit();
+
+  Future<void> stepFrames(int frames);
+
+  Future<Uint8List?> captureFrame({int? width, int? height});
+
+  Future<void> seekToChapter(FVideoChapter chapter);
+
+  Future<void> nextChapter();
+
+  Future<void> previousChapter();
 }
 
 /// Immutable playback state supplied to [FVideoChromeBuilder].
@@ -256,6 +279,11 @@ class FVideoChromeSnapshot {
     this.volume = 1,
     this.isPictureInPicture = false,
     this.pictureInPictureRequestPending = false,
+    this.isLooping = false,
+    this.rotationQuarterTurns = 0,
+    this.fit = BoxFit.contain,
+    this.chapters = const [],
+    this.currentChapter,
   });
 
   final VideoPlayerValue value;
@@ -274,6 +302,11 @@ class FVideoChromeSnapshot {
 
   final bool isPictureInPicture;
   final bool pictureInPictureRequestPending;
+  final bool isLooping;
+  final int rotationQuarterTurns;
+  final BoxFit fit;
+  final List<FVideoChapter> chapters;
+  final FVideoChapter? currentChapter;
 }
 
 /// Immutable dependencies supplied to custom player chrome.
@@ -426,6 +459,14 @@ class FVideoPlayer extends StatefulWidget {
     this.showFullscreenButton = true,
     this.isFullscreen = false,
     this.isPictureInPicture = false,
+    this.chapters = const [],
+    this.rotationQuarterTurns = 0,
+    this.frameStepDuration = const Duration(milliseconds: 33),
+    this.frameStepDelegate,
+    this.snapshotDelegate,
+    this.onLoopingChanged,
+    this.onFitChanged,
+    this.onRotationChanged,
   }) : assert(controller == null || controllerBuilder == null),
        assert(
          initialVolume == null || initialVolume >= 0 && initialVolume <= 1,
@@ -607,6 +648,25 @@ class FVideoPlayer extends StatefulWidget {
   /// platform transition.
   final bool isPictureInPicture;
 
+  /// Optional chapter/timestamp markers rendered along the timeline.
+  final List<FVideoChapter> chapters;
+
+  /// Initial clockwise 90-degree rotation turns (`0..3`).
+  final int rotationQuarterTurns;
+
+  /// Fallback seek delta per frame step when [frameStepDelegate] is omitted.
+  final Duration frameStepDuration;
+
+  /// Optional backend-exact frame-stepping delegate (e.g. MDK step).
+  final FVideoFrameStepDelegate? frameStepDelegate;
+
+  /// Optional frame capture delegate returning encoded image bytes.
+  final FVideoSnapshotDelegate? snapshotDelegate;
+
+  final ValueChanged<bool>? onLoopingChanged;
+  final ValueChanged<BoxFit>? onFitChanged;
+  final ValueChanged<int>? onRotationChanged;
+
   @override
   State<FVideoPlayer> createState() => _FVideoPlayerState();
 }
@@ -638,6 +698,9 @@ class _FVideoPlayerState extends State<FVideoPlayer>
   double _volume = 1;
   double _lastAudibleVolume = 1;
   double _speed = 1;
+  bool _looping = false;
+  BoxFit _fit = BoxFit.contain;
+  int _rotationQuarterTurns = 0;
   FVideoPlayerError? _error;
   FVideoPlaybackState? _playbackState;
   Duration? _scrubPosition;
@@ -659,6 +722,8 @@ class _FVideoPlayerState extends State<FVideoPlayer>
   AppLifecycleState _lifecycleState =
       WidgetsBinding.instance.lifecycleState ?? AppLifecycleState.resumed;
   PointerDeviceKind? _lastPointerKind;
+  Offset? _lastHoverPosition;
+  DateTime? _lastHiddenAt;
   final Map<int, Uint8List> _previewCache = {};
   FocusNode? _internalFocusNode;
   late final FVideoActions _actions;
@@ -687,6 +752,9 @@ class _FVideoPlayerState extends State<FVideoPlayer>
         delegatedExternalVolume ?? (widget.initialMuted ? 0 : configuredVolume);
     _lastAudibleVolume = initialAudibleVolume > 0 ? initialAudibleVolume : 1;
     _speed = widget.initialPlaybackSpeed ?? 1;
+    _looping = widget.looping;
+    _fit = widget.fit;
+    _rotationQuarterTurns = widget.rotationQuarterTurns & 3;
     unawaited(_replaceController(rebuild: false));
   }
 
@@ -747,8 +815,17 @@ class _FVideoPlayerState extends State<FVideoPlayer>
       _controlsVisible = widget.controlsEnabled;
       if (widget.controlsEnabled) _scheduleHide();
     }
-    if (controller != null && oldWidget.looping != widget.looping) {
-      unawaited(_runCommand(() => controller.setLooping(widget.looping)));
+    if (oldWidget.looping != widget.looping) {
+      _looping = widget.looping;
+      if (controller != null) {
+        unawaited(_runCommand(() => controller.setLooping(_looping)));
+      }
+    }
+    if (oldWidget.fit != widget.fit) {
+      _fit = widget.fit;
+    }
+    if (oldWidget.rotationQuarterTurns != widget.rotationQuarterTurns) {
+      _rotationQuarterTurns = widget.rotationQuarterTurns & 3;
     }
   }
 
@@ -889,8 +966,8 @@ class _FVideoPlayerState extends State<FVideoPlayer>
     required double targetVolume,
     required double targetSpeed,
   }) async {
-    if (controller.value.isLooping != widget.looping) {
-      await _runCommand(() => controller.setLooping(widget.looping));
+    if (controller.value.isLooping != _looping) {
+      await _runCommand(() => controller.setLooping(_looping));
       if (!_isCurrentController(controller, generation)) return;
     }
     if (widget.volumeDelegate == null &&
@@ -1093,7 +1170,7 @@ class _FVideoPlayerState extends State<FVideoPlayer>
       );
     }
     final completed =
-        !widget.looping &&
+        !_looping &&
         !value.isPlaying &&
         (value.isCompleted ||
             (value.isInitialized &&
@@ -1171,7 +1248,7 @@ class _FVideoPlayerState extends State<FVideoPlayer>
     if (_initializing || !value.isInitialized) {
       return FVideoPlaybackState.initializing;
     }
-    if (!widget.looping && (_ended || value.isCompleted && !value.isPlaying)) {
+    if (!_looping && (_ended || value.isCompleted && !value.isPlaying)) {
       return FVideoPlaybackState.completed;
     }
     if (value.isBuffering) return FVideoPlaybackState.buffering;
@@ -1275,21 +1352,19 @@ class _FVideoPlayerState extends State<FVideoPlayer>
   void _hideControls() {
     if (!widget.controlsEnabled) return;
     _hideTimer?.cancel();
-    if (!_controlsVisible || _accessibleNavigation || _controlsHaveFocus) {
-      return;
+    if (!_controlsVisible) return;
+    if (_controlsHaveFocus) {
+      _controlsHaveFocus = false;
+      _focusNode.requestFocus();
     }
+    _lastHiddenAt = DateTime.now();
     setState(() => _controlsVisible = false);
   }
 
   void _toggleControls() {
     if (!widget.controlsEnabled) return;
     if (_controlsVisible) {
-      _hideTimer?.cancel();
-      if (_accessibleNavigation) {
-        _showControls();
-        return;
-      }
-      setState(() => _controlsVisible = false);
+      _hideControls();
     } else {
       _showControls();
     }
@@ -1316,15 +1391,47 @@ class _FVideoPlayerState extends State<FVideoPlayer>
       _accessibleNavigation ||
       widget.controlsAutoHideDuration == Duration.zero;
 
-  void _scheduleHide() {
+  void _scheduleHide({Duration? delay}) {
     _hideTimer?.cancel();
     if (!widget.controlsEnabled) return;
     if (_controlsMustRemainVisible) return;
-    _hideTimer = Timer(widget.controlsAutoHideDuration, () {
+    _hideTimer = Timer(delay ?? widget.controlsAutoHideDuration, () {
       if (mounted && !_controlsMustRemainVisible) {
+        _lastHiddenAt = DateTime.now();
         setState(() => _controlsVisible = false);
       }
     });
+  }
+
+  void _handlePointerEnter(PointerEnterEvent event) {
+    _lastHoverPosition = event.position;
+    final hiddenAt = _lastHiddenAt;
+    if (!_controlsVisible &&
+        hiddenAt != null &&
+        DateTime.now().difference(hiddenAt) <
+            const Duration(milliseconds: 250)) {
+      return;
+    }
+    _showControls();
+  }
+
+  void _handlePointerHover(PointerHoverEvent event) {
+    final last = _lastHoverPosition;
+    if (last != null && (event.position - last).distance < 2.0) {
+      return;
+    }
+    _lastHoverPosition = event.position;
+    _showControls();
+  }
+
+  void _handlePointerExit(PointerExitEvent event) {
+    _lastHoverPosition = null;
+    if (!_controlsVisible || _controlsMustRemainVisible) return;
+    final quickDelay =
+        widget.controlsAutoHideDuration < const Duration(milliseconds: 600)
+        ? widget.controlsAutoHideDuration
+        : const Duration(milliseconds: 600);
+    _scheduleHide(delay: quickDelay);
   }
 
   Future<void> _togglePlayback() async {
@@ -1476,6 +1583,26 @@ class _FVideoPlayerState extends State<FVideoPlayer>
         widget.onPictureInPictureChanged != null) {
       if (repeating) return KeyEventResult.handled;
       unawaited(_requestPictureInPicture(!widget.isPictureInPicture));
+    } else if (key == LogicalKeyboardKey.bracketLeft) {
+      unawaited(_stepSpeed(-1));
+    } else if (key == LogicalKeyboardKey.bracketRight) {
+      unawaited(_stepSpeed(1));
+    } else if (key == LogicalKeyboardKey.backspace) {
+      if (repeating) return KeyEventResult.handled;
+      unawaited(_setPlaybackSpeed(1));
+    } else if (key == LogicalKeyboardKey.comma) {
+      unawaited(_stepFrames(-1));
+    } else if (key == LogicalKeyboardKey.period) {
+      unawaited(_stepFrames(1));
+    } else if (key == LogicalKeyboardKey.keyR) {
+      if (repeating) return KeyEventResult.handled;
+      _rotateClockwise();
+    } else if (key == LogicalKeyboardKey.keyZ) {
+      if (repeating) return KeyEventResult.handled;
+      _toggleFit();
+    } else if (_digitIndexForKey(key) case final int digit) {
+      if (repeating) return KeyEventResult.handled;
+      unawaited(_seekToPercent(digit * 0.1));
     } else if (key == LogicalKeyboardKey.escape) {
       if (repeating) return KeyEventResult.handled;
       if (widget.isFullscreen &&
@@ -1494,6 +1621,187 @@ class _FVideoPlayerState extends State<FVideoPlayer>
       return KeyEventResult.ignored;
     }
     return KeyEventResult.handled;
+  }
+
+  static int? _digitIndexForKey(LogicalKeyboardKey key) {
+    if (key == LogicalKeyboardKey.digit0 || key == LogicalKeyboardKey.numpad0) {
+      return 0;
+    }
+    if (key == LogicalKeyboardKey.digit1 || key == LogicalKeyboardKey.numpad1) {
+      return 1;
+    }
+    if (key == LogicalKeyboardKey.digit2 || key == LogicalKeyboardKey.numpad2) {
+      return 2;
+    }
+    if (key == LogicalKeyboardKey.digit3 || key == LogicalKeyboardKey.numpad3) {
+      return 3;
+    }
+    if (key == LogicalKeyboardKey.digit4 || key == LogicalKeyboardKey.numpad4) {
+      return 4;
+    }
+    if (key == LogicalKeyboardKey.digit5 || key == LogicalKeyboardKey.numpad5) {
+      return 5;
+    }
+    if (key == LogicalKeyboardKey.digit6 || key == LogicalKeyboardKey.numpad6) {
+      return 6;
+    }
+    if (key == LogicalKeyboardKey.digit7 || key == LogicalKeyboardKey.numpad7) {
+      return 7;
+    }
+    if (key == LogicalKeyboardKey.digit8 || key == LogicalKeyboardKey.numpad8) {
+      return 8;
+    }
+    if (key == LogicalKeyboardKey.digit9 || key == LogicalKeyboardKey.numpad9) {
+      return 9;
+    }
+    return null;
+  }
+
+  Future<void> _seekToPercent(double fraction) async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+    final duration = controller.value.duration;
+    if (duration <= Duration.zero) return;
+    await _seekTo(duration * fraction.clamp(0.0, 1.0));
+  }
+
+  Future<void> _stepSpeed(int delta) async {
+    final speeds = widget.playbackSpeeds;
+    if (speeds.isEmpty) return;
+    var bestIndex = 0;
+    var bestDiff = double.infinity;
+    for (var i = 0; i < speeds.length; i++) {
+      final diff = (speeds[i] - _speed).abs();
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestIndex = i;
+      }
+    }
+    final nextIndex = (bestIndex + delta).clamp(0, speeds.length - 1);
+    await _setPlaybackSpeed(speeds[nextIndex]);
+  }
+
+  Future<void> _setLooping(bool looping) async {
+    if (_looping == looping) return;
+    setState(() => _looping = looping);
+    final controller = _controller;
+    if (controller != null) {
+      await _runCommand(() => controller.setLooping(looping));
+    }
+    final callback = widget.onLoopingChanged;
+    if (callback != null) {
+      _invokeCallback(() => callback(looping), 'while reporting loop state');
+    }
+    _showControls();
+  }
+
+  Future<void> _toggleLooping() => _setLooping(!_looping);
+
+  void _setRotationQuarterTurns(int quarterTurns) {
+    final normalized = quarterTurns & 3;
+    if (_rotationQuarterTurns == normalized) return;
+    setState(() => _rotationQuarterTurns = normalized);
+    final callback = widget.onRotationChanged;
+    if (callback != null) {
+      _invokeCallback(
+        () => callback(normalized),
+        'while reporting rotation state',
+      );
+    }
+    _showControls();
+  }
+
+  void _rotateClockwise() =>
+      _setRotationQuarterTurns((_rotationQuarterTurns + 1) & 3);
+
+  void _setFit(BoxFit fit) {
+    if (_fit == fit) return;
+    setState(() => _fit = fit);
+    final callback = widget.onFitChanged;
+    if (callback != null) {
+      _invokeCallback(() => callback(fit), 'while reporting fit state');
+    }
+    _showControls();
+  }
+
+  void _toggleFit() =>
+      _setFit(_fit == BoxFit.cover ? BoxFit.contain : BoxFit.cover);
+
+  Future<void> _stepFrames(int frames) async {
+    if (frames == 0) return;
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+    if (controller.value.isPlaying) {
+      await _runCommand(controller.pause);
+    }
+    final delegate = widget.frameStepDelegate;
+    if (delegate != null) {
+      try {
+        await Future<void>.value(delegate(frames));
+      } catch (error, stackTrace) {
+        _reportCommandError(error, stackTrace);
+      }
+      _showControls();
+      return;
+    }
+    final delta = Duration(
+      milliseconds: widget.frameStepDuration.inMilliseconds * frames,
+    );
+    await _seekBy(delta);
+  }
+
+  Future<Uint8List?> _captureFrame({int? width, int? height}) async {
+    final delegate = widget.snapshotDelegate;
+    if (delegate != null) {
+      try {
+        return await Future<Uint8List?>.value(
+          delegate(width: width, height: height),
+        );
+      } catch (error, stackTrace) {
+        _reportCommandError(error, stackTrace);
+        return null;
+      }
+    }
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return null;
+    return (widget.thumbnailProvider ?? FVideoThumbnail.generateRequest)(
+      FVideoThumbnailRequest(
+        source: widget.source,
+        position: controller.value.position,
+        maxWidth: width ?? 1280,
+        quality: 92,
+      ),
+    );
+  }
+
+  Future<void> _seekToChapter(FVideoChapter chapter) =>
+      _seekTo(chapter.position);
+
+  Future<void> _nextChapter() async {
+    final controller = _controller;
+    if (controller == null || widget.chapters.isEmpty) return;
+    final current = controller.value.position;
+    for (final chapter in widget.chapters) {
+      if (chapter.position > current + const Duration(milliseconds: 500)) {
+        await _seekTo(chapter.position);
+        return;
+      }
+    }
+  }
+
+  Future<void> _previousChapter() async {
+    final controller = _controller;
+    if (controller == null || widget.chapters.isEmpty) return;
+    final current = controller.value.position;
+    FVideoChapter? target;
+    for (final chapter in widget.chapters) {
+      if (chapter.position + const Duration(seconds: 2) < current) {
+        target = chapter;
+      } else {
+        break;
+      }
+    }
+    await _seekTo(target?.position ?? Duration.zero);
   }
 
   void _beginScrub(double fraction) {
@@ -1830,8 +2138,9 @@ class _FVideoPlayerState extends State<FVideoPlayer>
           cursor: !widget.controlsEnabled || _controlsVisible
               ? SystemMouseCursors.basic
               : SystemMouseCursors.none,
-          onEnter: (_) => _showControls(),
-          onHover: (_) => _showControls(),
+          onEnter: _handlePointerEnter,
+          onHover: _handlePointerHover,
+          onExit: _handlePointerExit,
           child: Listener(
             onPointerDown: (event) {
               _lastPointerKind = event.kind;
@@ -2049,34 +2358,50 @@ class _FVideoPlayerState extends State<FVideoPlayer>
     );
   }
 
-  FVideoChromeScope _chromeScope(VideoPlayerController controller) =>
-      FVideoChromeScope(
-        snapshot: FVideoChromeSnapshot(
-          value: controller.value,
-          playbackState: _stateFor(controller.value),
-          displayPosition: _scrubPosition ?? controller.value.position,
-          controlsVisible: widget.controlsEnabled && _controlsVisible,
-          isScrubbing: _scrubActive,
-          bufferingIndicatorVisible: _showBuffering,
-          isFullscreen: widget.isFullscreen,
-          volume: _volume,
-          isPictureInPicture: widget.isPictureInPicture,
-          pictureInPictureRequestPending: _pictureInPictureRequestPending,
+  FVideoChromeScope _chromeScope(VideoPlayerController controller) {
+    final displayPosition = _scrubPosition ?? controller.value.position;
+    return FVideoChromeScope(
+      snapshot: FVideoChromeSnapshot(
+        value: controller.value,
+        playbackState: _stateFor(controller.value),
+        displayPosition: displayPosition,
+        controlsVisible: widget.controlsEnabled && _controlsVisible,
+        isScrubbing: _scrubActive,
+        bufferingIndicatorVisible: _showBuffering,
+        isFullscreen: widget.isFullscreen,
+        volume: _volume,
+        isPictureInPicture: widget.isPictureInPicture,
+        pictureInPictureRequestPending: _pictureInPictureRequestPending,
+        isLooping: _looping,
+        rotationQuarterTurns: _rotationQuarterTurns,
+        fit: _fit,
+        chapters: widget.chapters,
+        currentChapter: FVideoChapter.activeAt(
+          widget.chapters,
+          displayPosition,
         ),
-        actions: _actions,
-        labels: widget.labels,
-        previous: widget.onPrevious == null ? null : _requestPrevious,
-        next: widget.onNext == null ? null : _requestNext,
-      );
+      ),
+      actions: _actions,
+      labels: widget.labels,
+      previous: widget.onPrevious == null ? null : _requestPrevious,
+      next: widget.onNext == null ? null : _requestNext,
+    );
+  }
 
   Widget _videoSurface(VideoPlayerController controller) {
-    final surface =
+    final rawSurface =
         widget.videoSurfaceBuilder?.call(context, controller) ??
         VideoPlayer(controller);
+    final surface = _rotationQuarterTurns == 0
+        ? rawSurface
+        : RotatedBox(quarterTurns: _rotationQuarterTurns, child: rawSurface);
     return ClipRect(
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final sourceSize = _sourceSize(controller);
+          final unrotatedSize = _sourceSize(controller);
+          final sourceSize = _rotationQuarterTurns.isOdd
+              ? Size(unrotatedSize.height, unrotatedSize.width)
+              : unrotatedSize;
           final bounds = Size(
             constraints.hasBoundedWidth
                 ? constraints.maxWidth
@@ -2085,7 +2410,7 @@ class _FVideoPlayerState extends State<FVideoPlayer>
                 ? constraints.maxHeight
                 : sourceSize.height,
           );
-          final fittedSize = _fittedSurfaceSize(sourceSize, bounds, widget.fit);
+          final fittedSize = _fittedSurfaceSize(sourceSize, bounds, _fit);
           return OverflowBox(
             alignment: widget.alignment,
             minWidth: 0,
@@ -2334,6 +2659,13 @@ class _FVideoPlayerState extends State<FVideoPlayer>
                                 activeColor: widget.accentColor,
                                 bufferedColor: chromeStyle.bufferedTrackColor,
                                 inactiveColor: chromeStyle.inactiveTrackColor,
+                                markerFractions: durationMs > 0
+                                    ? [
+                                        for (final chapter in widget.chapters)
+                                          chapter.position.inMilliseconds /
+                                              durationMs,
+                                      ]
+                                    : const [],
                                 semanticLabel: widget.labels.position,
                                 semanticValue:
                                     '${_format(position)} / ${_format(value.duration)}',
@@ -2829,6 +3161,55 @@ final class _FVideoActions implements FVideoActions {
   @override
   Future<void> endScrub(double fraction) =>
       _active ? _state._endScrub(fraction) : Future.value();
+
+  @override
+  Future<void> setLooping(bool looping) =>
+      _active ? _state._setLooping(looping) : Future.value();
+
+  @override
+  Future<void> toggleLooping() =>
+      _active ? _state._toggleLooping() : Future.value();
+
+  @override
+  void setRotationQuarterTurns(int quarterTurns) {
+    if (_active) _state._setRotationQuarterTurns(quarterTurns);
+  }
+
+  @override
+  void rotateClockwise() {
+    if (_active) _state._rotateClockwise();
+  }
+
+  @override
+  void setFit(BoxFit fit) {
+    if (_active) _state._setFit(fit);
+  }
+
+  @override
+  void toggleFit() {
+    if (_active) _state._toggleFit();
+  }
+
+  @override
+  Future<void> stepFrames(int frames) =>
+      _active ? _state._stepFrames(frames) : Future.value();
+
+  @override
+  Future<Uint8List?> captureFrame({int? width, int? height}) => _active
+      ? _state._captureFrame(width: width, height: height)
+      : Future<Uint8List?>.value();
+
+  @override
+  Future<void> seekToChapter(FVideoChapter chapter) =>
+      _active ? _state._seekToChapter(chapter) : Future.value();
+
+  @override
+  Future<void> nextChapter() =>
+      _active ? _state._nextChapter() : Future.value();
+
+  @override
+  Future<void> previousChapter() =>
+      _active ? _state._previousChapter() : Future.value();
 }
 
 enum _Glyph {

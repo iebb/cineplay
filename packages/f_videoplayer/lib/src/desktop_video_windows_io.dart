@@ -20,6 +20,7 @@ class _IoDesktopVideoWindows
   final Map<int, MultiWindowManager> _controllers = {};
   final Set<int> _activeWindowIds = {};
   final ValueNotifier<bool> _currentWindowFullscreen = ValueNotifier(false);
+  final ValueNotifier<bool> _currentWindowAlwaysOnTop = ValueNotifier(false);
   final ValueNotifier<int> _currentWindowCloseRevision = ValueNotifier(0);
 
   Future<void>? _initializing;
@@ -40,6 +41,10 @@ class _IoDesktopVideoWindows
 
   @override
   ValueListenable<bool> get currentWindowFullscreen => _currentWindowFullscreen;
+
+  @override
+  ValueListenable<bool> get currentWindowAlwaysOnTop =>
+      _currentWindowAlwaysOnTop;
 
   @override
   ValueListenable<int> get currentWindowCloseRevision =>
@@ -310,6 +315,38 @@ class _IoDesktopVideoWindows
           : await window.isFullScreen();
     } on Object catch (error, stackTrace) {
       _report('toggleCurrentWindowFullscreen', error, stackTrace);
+    }
+  }
+
+  @override
+  Future<bool> setCurrentWindowAlwaysOnTop(bool alwaysOnTop) async {
+    if (!isSupported || _currentWindowId == null || _currentWindowId == 0) {
+      return false;
+    }
+    try {
+      final window = MultiWindowManager.current;
+      await window.setAlwaysOnTop(alwaysOnTop);
+      final current = await window.isAlwaysOnTop();
+      _currentWindowAlwaysOnTop.value = current;
+      return current == alwaysOnTop;
+    } on Object catch (error, stackTrace) {
+      _report('setCurrentWindowAlwaysOnTop', error, stackTrace);
+      return false;
+    }
+  }
+
+  @override
+  Future<void> toggleCurrentWindowAlwaysOnTop() async {
+    if (!isSupported || _currentWindowId == null || _currentWindowId == 0) {
+      return;
+    }
+    try {
+      final window = MultiWindowManager.current;
+      final target = !await window.isAlwaysOnTop();
+      await window.setAlwaysOnTop(target);
+      _currentWindowAlwaysOnTop.value = await window.isAlwaysOnTop();
+    } on Object catch (error, stackTrace) {
+      _report('toggleCurrentWindowAlwaysOnTop', error, stackTrace);
     }
   }
 

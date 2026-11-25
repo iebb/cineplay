@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:typed_data';
 
 import 'video_source.dart';
@@ -86,5 +87,83 @@ abstract final class FVideoThumbnail {
       maxWidth: request.maxWidth,
       quality: request.quality,
     );
+  }
+}
+
+/// Bounded LRU cache and in-flight deduplicator for scrub preview thumbnails.
+///
+/// Quantizes requested positions into [bucketDuration] intervals so scrubbing
+/// back and forth across a timeline reuses decoded frames instead of repeatedly
+/// invoking native decoders or HTTP range requests.
+class FVideoThumbnailCache {
+  FVideoThumbnailCache({
+    this.maxEntries = 48,
+    this.bucketDuration = const Duration(milliseconds: 1000),
+  }) : assert(maxEntries > 0),
+       assert(bucketDuration > Duration.zero);
+
+  final int maxEntries;
+  final Duration bucketDuration;
+
+  final LinkedHashMap<String, Uint8List> _entries =
+      LinkedHashMap<String, Uint8List>();
+  final Map<String, Future<Uint8List?>> _inFlight = {};
+
+  int get length => _entries.length;
+
+  Duration quantizePosition(Duration position) {
+    if (position <= Duration.zero) return Duration.zero;
+    final bucketMs = bucketDuration.inMilliseconds;
+    if (bucketMs <= 0) return position;
+    final quantizedMs = (position.inMilliseconds ~/ bucketMs) * bucketMs;
+    return Duration(milliseconds: quantizedMs);
+  }
+
+  Future<Uint8List?> resolve(
+    FVideoThumbnailRequest request, {
+    FVideoThumbnailProvider? provider,
+  }) {
+    final quantized = quantizePosition(request.position);
+    final key =
+        '${request.source.kind.name}:${request.source.location}|${quantized.inMilliseconds}|${request.maxWidth}|${request.quality}';
+    final cached = _entries.remove(key);
+    if (cached != null) {
+      _entries[key] = cached;
+      return Future<Uint8List?>.value(cached);
+    }
+    final existing = _inFlight[key];
+    if (existing != null) return existing;
+
+    final quantizedRequest = FVideoThumbnailRequest(
+      source: request.source,
+      position: quantized,
+      maxWidth: request.maxWidth,
+      quality: request.quality,
+    );
+    final loader = provider ?? FVideoThumbnail.generateRequest;
+    late final Future<Uint8List?> future;
+    future = Future<Uint8List?>.sync(() => loader(quantizedRequest))
+        .then((bytes) {
+          if (bytes != null && bytes.isNotEmpty) {
+            _entries.remove(key);
+            _entries[key] = bytes;
+            while (_entries.length > maxEntries) {
+              _entries.remove(_entries.keys.first);
+            }
+          }
+          return bytes;
+        })
+        .whenComplete(() {
+          if (identical(_inFlight[key], future)) {
+            _inFlight.remove(key);
+          }
+        });
+    _inFlight[key] = future;
+    return future;
+  }
+
+  void clear() {
+    _entries.clear();
+    _inFlight.clear();
   }
 }

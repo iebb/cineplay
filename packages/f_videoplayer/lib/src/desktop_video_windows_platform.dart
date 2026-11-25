@@ -10,6 +10,7 @@ abstract interface class FVideoDesktopWindowsPlatform {
 
   Set<int> get activeWindowIds;
   ValueListenable<bool> get currentWindowFullscreen;
+  ValueListenable<bool> get currentWindowAlwaysOnTop;
   ValueListenable<int> get currentWindowCloseRevision;
 
   Future<FVideoDesktopWindowArguments?> initialize(
@@ -37,4 +38,6 @@ abstract interface class FVideoDesktopWindowsPlatform {
   Future<void> closeAll();
   Future<bool> setCurrentWindowFullscreen(bool fullscreen);
   Future<void> toggleCurrentWindowFullscreen();
+  Future<bool> setCurrentWindowAlwaysOnTop(bool alwaysOnTop);
+  Future<void> toggleCurrentWindowAlwaysOnTop();
 }

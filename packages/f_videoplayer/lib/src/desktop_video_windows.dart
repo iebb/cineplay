@@ -50,6 +50,10 @@ class FVideoDesktopWindows {
   static ValueListenable<bool> get currentWindowFullscreen =>
       instance._platform.currentWindowFullscreen;
 
+  /// Observable always-on-top pin state for the current child window.
+  static ValueListenable<bool> get currentWindowAlwaysOnTop =>
+      instance._platform.currentWindowAlwaysOnTop;
+
   /// Increments before the current native child window closes.
   ///
   /// Player hosts use this to synchronously pause their controller even when
@@ -127,4 +131,12 @@ class FVideoDesktopWindows {
   /// Enters or leaves native fullscreen for the current child window.
   static Future<void> toggleCurrentWindowFullscreen() =>
       instance._platform.toggleCurrentWindowFullscreen();
+
+  /// Pins or unpins the current child window above other windows.
+  static Future<bool> setCurrentWindowAlwaysOnTop(bool alwaysOnTop) =>
+      instance._platform.setCurrentWindowAlwaysOnTop(alwaysOnTop);
+
+  /// Toggles always-on-top pinning for the current child window.
+  static Future<void> toggleCurrentWindowAlwaysOnTop() =>
+      instance._platform.toggleCurrentWindowAlwaysOnTop();
 }

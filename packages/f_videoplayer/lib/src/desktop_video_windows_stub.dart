@@ -8,6 +8,7 @@ FVideoDesktopWindowsPlatform createDesktopWindowsPlatform() =>
 
 class _UnsupportedDesktopVideoWindows implements FVideoDesktopWindowsPlatform {
   final ValueNotifier<bool> _currentWindowFullscreen = ValueNotifier(false);
+  final ValueNotifier<bool> _currentWindowAlwaysOnTop = ValueNotifier(false);
   final ValueNotifier<int> _currentWindowCloseRevision = ValueNotifier(0);
 
   @override
@@ -21,6 +22,10 @@ class _UnsupportedDesktopVideoWindows implements FVideoDesktopWindowsPlatform {
 
   @override
   ValueListenable<bool> get currentWindowFullscreen => _currentWindowFullscreen;
+
+  @override
+  ValueListenable<bool> get currentWindowAlwaysOnTop =>
+      _currentWindowAlwaysOnTop;
 
   @override
   ValueListenable<int> get currentWindowCloseRevision =>
@@ -85,4 +90,10 @@ class _UnsupportedDesktopVideoWindows implements FVideoDesktopWindowsPlatform {
 
   @override
   Future<void> toggleCurrentWindowFullscreen() async {}
+
+  @override
+  Future<bool> setCurrentWindowAlwaysOnTop(bool alwaysOnTop) async => false;
+
+  @override
+  Future<void> toggleCurrentWindowAlwaysOnTop() async {}
 }
