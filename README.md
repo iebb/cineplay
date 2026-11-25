@@ -76,19 +76,19 @@ identity consistent across the monorepo packages:
 dependencies:
   cineplay:
     git:
-      url: https://github.com/iebb/f-videoplayer.git
+      url: https://github.com/iebb/cineplay.git
       ref: v0.5.11
       path: packages/cineplay
   cineplay_pip:
     git:
-      url: https://github.com/iebb/f-videoplayer.git
+      url: https://github.com/iebb/cineplay.git
       ref: v0.5.11
       path: packages/cineplay_pip
 
 # Add only when the final application uses FVP.
   cineplay_fvp:
     git:
-      url: https://github.com/iebb/f-videoplayer.git
+      url: https://github.com/iebb/cineplay.git
       ref: v0.5.11
       path: packages/cineplay_fvp
   fvp: ^0.37.3
@@ -96,7 +96,7 @@ dependencies:
 dependency_overrides:
   fvp:
     git:
-      url: https://github.com/iebb/f-videoplayer.git
+      url: https://github.com/iebb/cineplay.git
       ref: v0.5.11
       path: third_party/fvp
 ```

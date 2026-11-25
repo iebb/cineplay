@@ -5,9 +5,9 @@ Pod::Spec.new do |s|
   s.description      = <<-DESC
 Picture-in-Picture playback handoff and restoration for macOS.
                        DESC
-  s.homepage         = 'https://github.com/iebb/f-videoplayer'
+  s.homepage         = 'https://github.com/iebb/cineplay'
   s.license          = { :type => 'BSD-3-Clause', :file => '../LICENSE' }
-  s.author           = { 'f-videoplayer contributors' => 'https://github.com/iebb/f-videoplayer' }
+  s.author           = { 'f-videoplayer contributors' => 'https://github.com/iebb/cineplay' }
   s.source           = { :path => '.' }
   s.source_files     = 'cineplay_pip/Sources/cineplay_pip/**/*'
   s.frameworks       = 'AVFoundation', 'AVKit'

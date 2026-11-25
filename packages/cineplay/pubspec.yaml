@@ -1,9 +1,9 @@
 name: cineplay
 description: Responsive Flutter video player with accessible controls and independent desktop windows.
 version: 0.7.0
-homepage: https://github.com/iebb/f-videoplayer
-repository: https://github.com/iebb/f-videoplayer
-issue_tracker: https://github.com/iebb/f-videoplayer/issues
+homepage: https://github.com/iebb/cineplay
+repository: https://github.com/iebb/cineplay
+issue_tracker: https://github.com/iebb/cineplay/issues
 topics:
   - video
   - media
