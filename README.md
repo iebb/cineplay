@@ -7,12 +7,12 @@ tested independently of one application.
 
 The repository contains:
 
-- `f_videoplayer`: the backend-neutral player UI, controller lifecycle,
+- `cineplay`: the backend-neutral player UI, controller lifecycle,
   playlists hooks, scrub previews, captions, volume, keyboard/pointer/touch
   controls, fullscreen requests, and independent desktop windows.
-- `f_videoplayer_pip`: native system Picture-in-Picture sessions on Android,
+- `cineplay_pip`: native system Picture-in-Picture sessions on Android,
   iOS, and macOS, including playback-state restoration and fractional volume.
-- `f_videoplayer_fvp`: an optional FVP/libmdk adapter for Linux, Windows, and
+- `cineplay_fvp`: an optional FVP/libmdk adapter for Linux, Windows, and
   deliberate backend overrides on other native platforms.
 - `third_party/fvp`: the pinned BSD-3-Clause FVP fork used by the adapter. It
   contains source only; native MDK archives remain upstream downloads.
@@ -74,23 +74,23 @@ identity consistent across the monorepo packages:
 
 ```yaml
 dependencies:
-  f_videoplayer:
+  cineplay:
     git:
       url: https://github.com/iebb/f-videoplayer.git
       ref: v0.5.11
-      path: packages/f_videoplayer
-  f_videoplayer_pip:
+      path: packages/cineplay
+  cineplay_pip:
     git:
       url: https://github.com/iebb/f-videoplayer.git
       ref: v0.5.11
-      path: packages/f_videoplayer_pip
+      path: packages/cineplay_pip
 
 # Add only when the final application uses FVP.
-  f_videoplayer_fvp:
+  cineplay_fvp:
     git:
       url: https://github.com/iebb/f-videoplayer.git
       ref: v0.5.11
-      path: packages/f_videoplayer_fvp
+      path: packages/cineplay_fvp
   fvp: ^0.37.3
 
 dependency_overrides:
@@ -114,7 +114,7 @@ This prevents new builds from using an expired SDK; it does not extend the
 key-free lifetime of the SDK inside an already installed app.
 
 For development from `master` or a specific commit, add an application-level
-`dependency_overrides` entry for `f_videoplayer` using the same Git ref. Pub
+`dependency_overrides` entry for `cineplay` using the same Git ref. Pub
 otherwise treats a tag, branch, and commit as distinct sources even when they
 resolve to the same object.
 
@@ -130,7 +130,7 @@ FVideoPlayer(
 )
 ```
 
-See [`packages/f_videoplayer/README.md`](packages/f_videoplayer/README.md) for
+See [`packages/cineplay/README.md`](packages/cineplay/README.md) for
 the complete chrome, source, lifecycle, window, and accessibility APIs.
 
 ## Picture in Picture
@@ -142,7 +142,7 @@ iOS player instead of opening a second decoder.
 
 Android hosts must opt the activity into PiP in the manifest and forward its
 lifecycle callbacks. The exact implementation is documented in
-[`packages/f_videoplayer_pip/README.md`](packages/f_videoplayer_pip/README.md).
+[`packages/cineplay_pip/README.md`](packages/cineplay_pip/README.md).
 
 ## DRM status
 
@@ -157,10 +157,10 @@ restrictions, credential handling, and implementation roadmap.
 ## Development
 
 ```sh
-cd packages/f_videoplayer && flutter pub get && flutter test
-cd ../f_videoplayer_fvp && flutter pub get && flutter test
-cd ../f_videoplayer_pip && flutter pub get && flutter test
-cd ../f_videoplayer/example && flutter pub get && flutter test
+cd packages/cineplay && flutter pub get && flutter test
+cd ../cineplay_fvp && flutter pub get && flutter test
+cd ../cineplay_pip && flutter pub get && flutter test
+cd ../cineplay/example && flutter pub get && flutter test
 ```
 
 CI additionally analyzes every package and compile-smokes Android, iOS, web,

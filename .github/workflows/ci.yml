@@ -16,10 +16,10 @@ concurrency:
 
 env:
   FLUTTER_VERSION: 3.44.2
-  CORE: packages/f_videoplayer
-  FVP_ADAPTER: packages/f_videoplayer_fvp
-  PIP: packages/f_videoplayer_pip
-  EXAMPLE: packages/f_videoplayer/example
+  CORE: packages/cineplay
+  FVP_ADAPTER: packages/cineplay_fvp
+  PIP: packages/cineplay_pip
+  EXAMPLE: packages/cineplay/example
 
 jobs:
   sdk-tests:
@@ -121,7 +121,7 @@ jobs:
         run: flutter build apk --debug
       - name: Test Android Picture in Picture lifecycle
         working-directory: ${{ env.EXAMPLE }}/android
-        run: ./gradlew :f_videoplayer_pip:testDebugUnitTest
+        run: ./gradlew :cineplay_pip:testDebugUnitTest
 
   ios:
     runs-on: macos-latest

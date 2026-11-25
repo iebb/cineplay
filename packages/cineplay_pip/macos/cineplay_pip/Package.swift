@@ -1,0 +1,20 @@
+// swift-tools-version: 5.9
+
+import PackageDescription
+
+let package = Package(
+  name: "cineplay_pip",
+  platforms: [.macOS("11.0")],
+  products: [
+    .library(name: "f-videoplayer-pip", targets: ["cineplay_pip"])
+  ],
+  targets: [
+    .target(
+      name: "cineplay_pip",
+      linkerSettings: [
+        .linkedFramework("AVFoundation"),
+        .linkedFramework("AVKit")
+      ]
+    )
+  ]
+)

@@ -1,0 +1,38 @@
+name: cineplay_fvp
+description: Optional FVP playback backend adapter for cineplay.
+version: 0.7.0
+homepage: https://github.com/iebb/f-videoplayer
+repository: https://github.com/iebb/f-videoplayer
+issue_tracker: https://github.com/iebb/f-videoplayer/issues
+topics:
+  - video
+  - media
+  - player
+  - fvp
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ffi: ^2.1.3
+  fvp: ^0.37.3
+  cineplay: ^0.7.0
+  video_player: ^2.13.0
+  video_player_platform_interface: any
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: false
+
+# Repository development only. Dependency overrides are intentionally ignored
+# by applications consuming this package, where the app pins cineplay and
+# cineplay_fvp to the same Git release.
+dependency_overrides:
+  cineplay:
+    path: ../cineplay

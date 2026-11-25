@@ -1,0 +1,44 @@
+name: cineplay_example
+description: Embedded and independent-window examples for cineplay.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  # FVP must be direct for its native assets on Flutter 3.27 and newer.
+  fvp: ^0.37.3
+  flutter:
+    sdk: flutter
+  cineplay:
+    path: ../
+  cineplay_fvp:
+    path: ../../cineplay_fvp
+  cineplay_pip:
+    path: ../../cineplay_pip
+  video_player: ^2.13.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+dependency_overrides:
+  # Keep repository development source-local even though the adapter points to
+  # the matching public Git release.
+  cineplay:
+    path: ../
+  # Repository-only: compile-smoke the exact F Video Player FVP fork used by the host
+  # app. Consumers of the optional adapter continue to resolve hosted FVP.
+  fvp:
+    path: ../../../third_party/fvp
+  # Upstream's Linux plugin links the build host's FFmpeg 6 libraries, which
+  # the FVP adapter replaces with MDK's bundled FFmpeg. This copy drops it.
+  fc_native_video_thumbnail:
+    path: ../../../third_party/fc_native_video_thumbnail
+
+flutter:
+  config:
+    enable-swift-package-manager: true
+  uses-material-design: false
