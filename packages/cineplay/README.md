@@ -117,7 +117,21 @@ FVideoPlayer(
 
 ---
 
-## Custom Chrome
+## Custom Chrome & Built-in Settings Menu
+
+Drop in `CineplaySettingsMenu` for one-click speed pills, loop, Fit/Fill, 90° rotation, chapter jumping, and optional quality/audio/subtitle pickers, or build bespoke buttons with `CineplayControlButton` (44×44 hit target, hover wash, keyboard focus ring):
+
+```dart
+FVideoPlayer(
+  source: source,
+  topTrailingBuilder: (context, scope) => CineplaySettingsMenu(
+    scope: scope,
+    qualities: qualities,
+    selectedQualityId: selectedQualityId,
+    onSelectQuality: onSelectQuality,
+  ),
+);
+```
 
 Provide `chromeBuilder` to build a bespoke UI while keeping focus, keyboard shortcuts, lifecycle handling, buffering, rotation, fit, and captions player-owned:
 

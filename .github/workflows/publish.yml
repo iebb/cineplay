@@ -1,0 +1,183 @@
+name: Publish to pub.dev
+
+# Automated publishing via pub.dev OIDC (no long-lived credentials needed).
+#
+# One-time setup per package on pub.dev (Admin -> Automated publishing):
+#   - Enable publishing from GitHub Actions
+#   - Repository: iebb/cineplay
+#   - Tag pattern: v{{version}}
+#   - Packages: cineplay, cineplay_pip, cineplay_fvp
+#
+# Note: pub.dev requires the very first version of a brand-new package to be
+# uploaded once manually (`flutter pub publish`) so you own the package before
+# enabling OIDC automated publishing for all subsequent releases.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Validate and dry-run without uploading to pub.dev
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: cineplay-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: 3.44.2
+
+jobs:
+  verify:
+    name: Verify packages for release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is_dry_run: ${{ steps.version.outputs.is_dry_run }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Verify package versions match tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          core_ver="$(awk '/^version:/ {print $2; exit}' packages/cineplay/pubspec.yaml)"
+          pip_ver="$(awk '/^version:/ {print $2; exit}' packages/cineplay_pip/pubspec.yaml)"
+          fvp_ver="$(awk '/^version:/ {print $2; exit}' packages/cineplay_fvp/pubspec.yaml)"
+
+          if [ "$core_ver" != "$pip_ver" ] || [ "$core_ver" != "$fvp_ver" ]; then
+            echo "Version mismatch: cineplay=$core_ver cineplay_pip=$pip_ver cineplay_fvp=$fvp_ver" >&2
+            exit 1
+          fi
+
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            tag_ver="${GITHUB_REF#refs/tags/v}"
+            if [ "$tag_ver" != "$core_ver" ]; then
+              echo "Tag v$tag_ver does not match pubspec version $core_ver" >&2
+              exit 1
+            fi
+          fi
+
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            echo "is_dry_run=${{ inputs.dry_run }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_dry_run=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$core_ver" >> "$GITHUB_OUTPUT"
+
+      - name: Analyze and test all packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pkg in packages/cineplay packages/cineplay_fvp packages/cineplay_pip; do
+            echo "::group::Testing $pkg"
+            (cd "$pkg" && flutter pub get && flutter analyze --fatal-infos && flutter test)
+            echo "::endgroup::"
+          done
+
+      - name: Dry-run publish cineplay and cineplay_pip
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd packages/cineplay && flutter pub publish --dry-run)
+          (cd packages/cineplay_pip && flutter pub publish --dry-run)
+
+  publish:
+    name: Publish packages to pub.dev
+    needs: verify
+    if: needs.verify.outputs.is_dry_run != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Publish cineplay
+        shell: bash
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          code="$(curl -s -o /dev/null -w '%{http_code}' "https://pub.dev/api/packages/cineplay/versions/$VERSION")"
+          if [ "$code" = "200" ]; then
+            echo "cineplay $VERSION is already published on pub.dev; skipping."
+            exit 0
+          fi
+          (cd packages/cineplay && flutter pub publish --force)
+
+          echo "Waiting for cineplay $VERSION to become visible on pub.dev..."
+          for _ in $(seq 1 24); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' "https://pub.dev/api/packages/cineplay/versions/$VERSION")"
+            if [ "$code" = "200" ]; then
+              echo "cineplay $VERSION is live on pub.dev."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Timed out waiting for cineplay $VERSION on pub.dev." >&2
+          exit 1
+
+      - name: Publish cineplay_pip
+        shell: bash
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          code="$(curl -s -o /dev/null -w '%{http_code}' "https://pub.dev/api/packages/cineplay_pip/versions/$VERSION")"
+          if [ "$code" = "200" ]; then
+            echo "cineplay_pip $VERSION is already published on pub.dev; skipping."
+            exit 0
+          fi
+          (cd packages/cineplay_pip && flutter pub publish --force)
+
+      - name: Publish cineplay_fvp
+        shell: bash
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          code="$(curl -s -o /dev/null -w '%{http_code}' "https://pub.dev/api/packages/cineplay_fvp/versions/$VERSION")"
+          if [ "$code" = "200" ]; then
+            echo "cineplay_fvp $VERSION is already published on pub.dev; skipping."
+            exit 0
+          fi
+          # Remove repo-local dependency_overrides so pub.dev resolves cineplay from pub.dev.
+          python3 - <<'PY'
+          import pathlib, re
+          p = pathlib.Path('packages/cineplay_fvp/pubspec.yaml')
+          text = p.read_text(encoding='utf-8')
+          text = re.sub(r'\n# Repository development only\..*\Z', '\n', text, flags=re.S)
+          p.write_text(text, encoding='utf-8')
+          PY
+          (cd packages/cineplay_fvp && flutter pub get && flutter pub publish --force)
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists."
+            exit 0
+          fi
+          gh release create "$TAG" --title "Cineplay $TAG" --generate-notes

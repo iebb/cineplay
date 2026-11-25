@@ -3041,14 +3041,36 @@ class _FVideoPlayerState extends State<FVideoPlayer>
                         ),
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(6, 12, 6, 5),
-                          child: Text(
-                            _format(position),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Color(0xFFFFFFFF),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (FVideoChapter.activeAt(
+                                    widget.chapters,
+                                    position,
+                                  )?.title
+                                  case final String chapterTitle
+                                  when chapterTitle.isNotEmpty)
+                                Text(
+                                  chapterTitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Color(0xD9FFFFFF),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              Text(
+                                _format(position),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Color(0xFFFFFFFF),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),

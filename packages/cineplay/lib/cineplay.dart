@@ -1,6 +1,7 @@
 library;
 
 export 'src/desktop_video_windows.dart';
+export 'src/video_menus.dart';
 export 'src/video_models.dart';
 export 'src/video_player.dart';
 export 'src/video_slider.dart';

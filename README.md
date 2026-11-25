@@ -114,6 +114,16 @@ cd packages/cineplay_pip && flutter analyze --fatal-infos && flutter test
 cd packages/cineplay/example && flutter analyze --fatal-infos && flutter test
 ```
 
+---
+
+## Automated Publishing (GitHub Actions + pub.dev OIDC)
+
+[`.github/workflows/publish.yml`](.github/workflows/publish.yml) publishes `cineplay`, `cineplay_pip`, and `cineplay_fvp` in dependency order and creates a GitHub Release whenever a `v*` tag is pushed (or runs a safe dry-run via manual `workflow_dispatch`).
+
+1. Upload the initial version of each package once manually (`flutter pub publish`) so you own the package on pub.dev.
+2. In pub.dev **Admin → Automated publishing**, enable GitHub Actions for `iebb/cineplay` with tag pattern `v{{version}}`.
+3. From then on, bump versions in the three `pubspec.yaml` + `CHANGELOG.md` files and push a matching `vX.Y.Z` tag.
+
 ## License
 
 BSD-3-Clause. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
