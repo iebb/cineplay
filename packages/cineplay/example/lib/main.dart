@@ -32,7 +32,7 @@ class ExampleApp extends StatelessWidget {
   Widget build(BuildContext context) => WidgetsApp(
     color: _Palette.canvas,
     debugShowCheckedModeBanner: false,
-    title: 'F Video Player',
+    title: 'Cineplay',
     pageRouteBuilder: _buildPageRoute,
     home: const _ExampleHome(),
   );
@@ -350,7 +350,7 @@ class _Header extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       const Text(
-        'F Video Player',
+        'Cineplay',
         style: TextStyle(
           color: _Palette.text,
           fontSize: 30,

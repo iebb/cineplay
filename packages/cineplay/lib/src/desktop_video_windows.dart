@@ -30,6 +30,10 @@ class FVideoDesktopWindows {
 
   bool get isSupported => _platform.isSupported;
 
+  /// Whether this Flutter engine is currently running inside an independent
+  /// child video window created by [FVideoDesktopWindows].
+  static bool get isCurrentWindow => instance._platform.isCurrentWindow;
+
   /// Receives recoverable native-window failures.
   ///
   /// Operations still resolve gracefully (`open` returns `null`; commands are

@@ -522,22 +522,16 @@ void main() {
     },
   );
 
-  testWidgets('default transport style is high contrast and configurable', (
+  testWidgets('default transport style uses shadowed icons without circles', (
     tester,
   ) async {
     const defaults = FVideoChromeStyle();
-    expect(defaults.transportBackgroundColor.a, greaterThanOrEqualTo(0.8));
-    expect(
-      defaults.primaryTransportBackgroundColor.a,
-      greaterThanOrEqualTo(0.9),
-    );
-    expect(defaults.transportBorderColor.a, greaterThanOrEqualTo(0.35));
     expect(defaults.foregroundColor.computeLuminance(), greaterThan(0.9));
-    expect(defaults.transportBackgroundColor.computeLuminance(), lessThan(0.1));
+    expect(defaults.iconShadowColor.a, greaterThanOrEqualTo(0.7));
+    expect(defaults.iconShadowBlurRadius, greaterThan(0));
 
     final controller = _FakeVideoPlayerController();
-    const transport = Color(0xFF102030);
-    const primary = Color(0xFF304050);
+    const shadowColor = Color(0xFF102030);
     await tester.pumpWidget(
       _frame(
         FVideoPlayer(
@@ -547,8 +541,9 @@ void main() {
           onPrevious: () {},
           onNext: () {},
           chromeStyle: const FVideoChromeStyle(
-            transportBackgroundColor: transport,
-            primaryTransportBackgroundColor: primary,
+            iconShadowColor: shadowColor,
+            iconShadowBlurRadius: 8,
+            iconShadowOffset: Offset(1, 2),
             wideTransportButtonSize: 60,
             widePrimaryTransportButtonSize: 80,
             wideTransportSpacing: 17,
@@ -581,20 +576,46 @@ void main() {
           widget.decoration is BoxDecoration &&
           (widget.decoration! as BoxDecoration).shape == BoxShape.circle,
     );
-    final colors = circularDecorations
-        .evaluate()
-        .map((element) => (element.widget as Container).decoration)
-        .cast<BoxDecoration>()
-        .map((decoration) => decoration.color)
-        .toList();
-    expect(colors, contains(transport));
-    expect(colors, contains(primary));
+    expect(circularDecorations, findsNothing);
     expect(tester.takeException(), isNull);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
     await controller.dispose();
   });
+
+  testWidgets(
+    'showCloseButton hides the top-left close button while Escape still closes',
+    (tester) async {
+      final controller = _FakeVideoPlayerController();
+      var closeCalls = 0;
+
+      await tester.pumpWidget(
+        _frame(
+          FVideoPlayer(
+            source: _source('hidden-close-button'),
+            controller: controller,
+            autoplay: false,
+            autofocus: true,
+            showCloseButton: false,
+            onClose: () => closeCalls++,
+          ),
+          width: 720,
+          height: 600,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(_semanticsWidget('Close'), findsNothing);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(closeCalls, 1);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      await controller.dispose();
+    },
+  );
 
   testWidgets('full custom chrome suppresses the default top trailing slot', (
     tester,

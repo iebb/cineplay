@@ -34,6 +34,9 @@ class _IoDesktopVideoWindows
       Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
   @override
+  bool get isCurrentWindow => (_currentWindowId ?? 0) > 0;
+
+  @override
   FVideoDesktopWindowErrorHandler? onError;
 
   @override

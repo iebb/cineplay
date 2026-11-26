@@ -4,6 +4,7 @@ import 'desktop_video_window_arguments.dart';
 
 abstract interface class FVideoDesktopWindowsPlatform {
   bool get isSupported;
+  bool get isCurrentWindow;
 
   FVideoDesktopWindowErrorHandler? get onError;
   set onError(FVideoDesktopWindowErrorHandler? value);

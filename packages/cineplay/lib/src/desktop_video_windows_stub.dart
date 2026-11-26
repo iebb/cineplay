@@ -15,6 +15,9 @@ class _UnsupportedDesktopVideoWindows implements FVideoDesktopWindowsPlatform {
   bool get isSupported => false;
 
   @override
+  bool get isCurrentWindow => false;
+
+  @override
   FVideoDesktopWindowErrorHandler? onError;
 
   @override

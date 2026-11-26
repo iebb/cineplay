@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:video_player/video_player.dart';
 
+import 'desktop_video_windows.dart';
 import 'video_models.dart';
 import 'video_slider.dart';
 import 'video_source.dart';
@@ -88,6 +89,9 @@ typedef FVideoPictureInPictureChanged =
 class FVideoChromeStyle {
   const FVideoChromeStyle({
     this.foregroundColor = const Color(0xFFFFFFFF),
+    this.iconShadowColor = const Color(0xCC000000),
+    this.iconShadowBlurRadius = 6,
+    this.iconShadowOffset = const Offset(0, 1.5),
     this.transportBackgroundColor = const Color(0xCC000000),
     this.primaryTransportBackgroundColor = const Color(0xE6000000),
     this.transportBorderColor = const Color(0x66FFFFFF),
@@ -108,6 +112,9 @@ class FVideoChromeStyle {
     this.compactTransportSpacing = 8,
     this.wideTransportSpacing = 12,
   }) : assert(
+         iconShadowBlurRadius >= 0 && iconShadowBlurRadius < double.infinity,
+       ),
+       assert(
          transportBorderWidth >= 0 && transportBorderWidth < double.infinity,
        ),
        assert(
@@ -140,6 +147,11 @@ class FVideoChromeStyle {
 
   /// Glyph, time-label, and volume-track foreground.
   final Color foregroundColor;
+
+  /// Drop shadow painted behind control icons and text labels.
+  final Color iconShadowColor;
+  final double iconShadowBlurRadius;
+  final Offset iconShadowOffset;
 
   /// Filled background for secondary previous/next transports.
   final Color transportBackgroundColor;
@@ -455,6 +467,7 @@ class FVideoPlayer extends StatefulWidget {
     this.volumeDelegate,
     this.externalVolume,
     this.controlsEnabled = true,
+    this.showCloseButton,
     this.showPictureInPictureButton = true,
     this.showFullscreenButton = true,
     this.isFullscreen = false,
@@ -622,6 +635,14 @@ class FVideoPlayer extends StatefulWidget {
   /// suppressed. Playback, captions, buffering, and [overlayBuilder] remain
   /// active; this is suitable for a native PiP capture surface.
   final bool controlsEnabled;
+
+  /// Controls whether the top-left close button is rendered when [onClose] is set.
+  ///
+  /// When omitted, defaults to showing the close button except inside an
+  /// independent desktop window ([FVideoDesktopWindows.isCurrentWindow]), which
+  /// already provides native window chrome. Keyboard Escape still invokes
+  /// [onClose] regardless of this setting.
+  final bool? showCloseButton;
 
   /// Whether default chrome shows its Picture-in-Picture action.
   ///
@@ -2591,6 +2612,9 @@ class _FVideoPlayerState extends State<FVideoPlayer>
         ? safePadding.right
         : safePadding.left;
     final chromeStyle = widget.chromeStyle;
+    final showsCloseButton =
+        widget.onClose != null &&
+        (widget.showCloseButton ?? !FVideoDesktopWindows.isCurrentWindow);
     return FocusTraversalGroup(
       policy: OrderedTraversalPolicy(),
       child: Stack(
@@ -2613,7 +2637,7 @@ class _FVideoPlayerState extends State<FVideoPlayer>
               ),
             ),
           ),
-          if (widget.onClose != null)
+          if (showsCloseButton)
             PositionedDirectional(
               top: 14 + safePadding.top,
               start: 14 + safeStart,
@@ -2721,7 +2745,7 @@ class _FVideoPlayerState extends State<FVideoPlayer>
           if (widget.topTrailingBuilder != null)
             PositionedDirectional(
               top: 14 + safePadding.top,
-              start: (widget.onClose == null ? 14 : 70) + safeStart,
+              start: (showsCloseButton ? 70 : 14) + safeStart,
               end: 14 + safeEnd,
               child: ConstrainedBox(
                 constraints: BoxConstraints(
@@ -2867,6 +2891,14 @@ class _FVideoPlayerState extends State<FVideoPlayer>
                 fontWeight: FontWeight.normal,
                 decoration: TextDecoration.none,
                 fontFeatures: const [FontFeature.tabularFigures()],
+                shadows: [
+                  if (widget.chromeStyle.iconShadowColor.a > 0)
+                    Shadow(
+                      color: widget.chromeStyle.iconShadowColor,
+                      blurRadius: widget.chromeStyle.iconShadowBlurRadius,
+                      offset: widget.chromeStyle.iconShadowOffset,
+                    ),
+                ],
               ),
             ),
           ),
@@ -3249,19 +3281,50 @@ enum _Glyph {
 }
 
 class _GlyphPainter extends CustomPainter {
-  const _GlyphPainter(this.glyph, this.color);
+  const _GlyphPainter(
+    this.glyph,
+    this.color, {
+    this.shadowColor = const Color(0x00000000),
+    this.shadowBlurRadius = 0,
+    this.shadowOffset = Offset.zero,
+  });
 
   final _Glyph glyph;
   final Color color;
+  final Color shadowColor;
+  final double shadowBlurRadius;
+  final Offset shadowOffset;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final strokeWidth = math.max(1.8, size.width * 0.09);
+    if (shadowColor.a > 0) {
+      final shadowPaint = Paint()
+        ..color = shadowColor
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+      if (shadowBlurRadius > 0) {
+        shadowPaint.maskFilter = MaskFilter.blur(
+          BlurStyle.normal,
+          shadowBlurRadius * 0.5,
+        );
+      }
+      canvas.save();
+      canvas.translate(shadowOffset.dx, shadowOffset.dy);
+      _paintGlyph(canvas, size, shadowPaint);
+      canvas.restore();
+    }
     final paint = Paint()
       ..color = color
-      ..strokeWidth = math.max(1.8, size.width * 0.09)
+      ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..style = PaintingStyle.stroke;
+      ..strokeJoin = StrokeJoin.round;
+    _paintGlyph(canvas, size, paint);
+  }
+
+  void _paintGlyph(Canvas canvas, Size size, Paint paint) {
+    paint.style = PaintingStyle.stroke;
     final w = size.width;
     final h = size.height;
     switch (glyph) {
@@ -3442,7 +3505,11 @@ class _GlyphPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_GlyphPainter oldDelegate) =>
-      oldDelegate.glyph != glyph || oldDelegate.color != color;
+      oldDelegate.glyph != glyph ||
+      oldDelegate.color != color ||
+      oldDelegate.shadowColor != shadowColor ||
+      oldDelegate.shadowBlurRadius != shadowBlurRadius ||
+      oldDelegate.shadowOffset != shadowOffset;
 }
 
 class _PlayerControlButton extends StatelessWidget {
@@ -3469,49 +3536,38 @@ class _PlayerControlButton extends StatelessWidget {
   final FVideoChromeStyle style;
 
   @override
-  Widget build(BuildContext context) => _FocusableTapRegion(
-    label: label,
-    toggled: toggled,
-    onTap: busy ? null : onTap,
-    borderRadius: BorderRadius.circular(size / 2),
-    focusColor: style.focusColor,
-    hoverColor: style.hoverColor,
-    child: Container(
-      width: size,
-      height: size,
-      decoration: filled
-          ? BoxDecoration(
-              color: prominent
-                  ? style.primaryTransportBackgroundColor
-                  : style.transportBackgroundColor,
-              shape: BoxShape.circle,
-              border: style.transportBorderWidth == 0
-                  ? null
-                  : Border.all(
-                      color: style.transportBorderColor,
-                      width: style.transportBorderWidth,
-                    ),
-              boxShadow: [
-                BoxShadow(
-                  color: style.transportShadowColor,
-                  blurRadius: style.transportShadowBlurRadius,
-                  offset: style.transportShadowOffset,
+  Widget build(BuildContext context) {
+    final glyphFactor = prominent ? 0.56 : (filled ? 0.50 : 0.48);
+    return _FocusableTapRegion(
+      label: label,
+      toggled: toggled,
+      onTap: busy ? null : onTap,
+      borderRadius: BorderRadius.circular(10),
+      focusColor: style.focusColor,
+      hoverColor: style.hoverColor,
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Center(
+          child: busy
+              ? SizedBox.square(
+                  dimension: size * 0.4,
+                  child: _ActivityIndicator(color: style.foregroundColor),
+                )
+              : CustomPaint(
+                  size: Size.square(size * glyphFactor),
+                  painter: _GlyphPainter(
+                    glyph,
+                    style.foregroundColor,
+                    shadowColor: style.iconShadowColor,
+                    shadowBlurRadius: style.iconShadowBlurRadius,
+                    shadowOffset: style.iconShadowOffset,
+                  ),
                 ),
-              ],
-            )
-          : null,
-      alignment: Alignment.center,
-      child: busy
-          ? SizedBox.square(
-              dimension: size * 0.4,
-              child: _ActivityIndicator(color: style.foregroundColor),
-            )
-          : CustomPaint(
-              size: Size.square(size * (filled ? 0.42 : 0.48)),
-              painter: _GlyphPainter(glyph, style.foregroundColor),
-            ),
-    ),
-  );
+        ),
+      ),
+    );
+  }
 }
 
 class _BareTextControlButton extends StatelessWidget {
@@ -3548,6 +3604,14 @@ class _BareTextControlButton extends StatelessWidget {
           fontWeight: FontWeight.normal,
           decoration: TextDecoration.none,
           fontFeatures: const [FontFeature.tabularFigures()],
+          shadows: [
+            if (style.iconShadowColor.a > 0)
+              Shadow(
+                color: style.iconShadowColor,
+                blurRadius: style.iconShadowBlurRadius,
+                offset: style.iconShadowOffset,
+              ),
+          ],
         ),
       ),
     ),
