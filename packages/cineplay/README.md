@@ -117,6 +117,39 @@ FVideoPlayer(
 
 ---
 
+## Theming
+
+Install one `CineplayTheme` above your players. The default chrome, `CineplaySettingsMenu`, `CineplayControlButton`, and the menu building blocks all read it; explicit `chromeStyle`, `accentColor`, and `backgroundColor` arguments on `FVideoPlayer` still win.
+
+```dart
+CineplayTheme(
+  data: const CineplayThemeData(
+    accentColor: Color(0xFF61D6C8),
+    chrome: FVideoChromeStyle(hoverColor: Color(0x1FFFFFFF)),
+    surfaceColor: Color(0xF2151920),
+    surfaceRadius: 16,
+    itemRadius: 10,
+    fontFamily: 'Inter',
+  ),
+  child: app,
+);
+```
+
+Controls use Cineplay's rounded icon set (`CineplayIcon(CineplayGlyph.play)`): filled transport shapes with circular-arc corners, 8.5% round-capped strokes, and circular hover/focus wash (set `controlBorderRadius` for a rounded square instead). Swap any glyph for your own artwork with `glyphBuilder`; return `null` to keep the built-in drawing:
+
+```dart
+CineplayThemeData(
+  glyphBuilder: (context, glyph, color, size, shadow) => switch (glyph) {
+    CineplayGlyph.play => MyIcon.play(color: color, size: size),
+    _ => null,
+  },
+);
+```
+
+Build app-owned popovers that match the settings menu with `CineplayMenuSurface`, `CineplayMenuItem`, `CineplayMenuSection`, and `CineplayMenuDivider`.
+
+---
+
 ## Custom Chrome & Built-in Settings Menu
 
 Drop in `CineplaySettingsMenu` for one-click speed pills, loop, Fit/Fill, 90° rotation, chapter jumping, and optional quality/audio/subtitle pickers, or build bespoke buttons with `CineplayControlButton` (44×44 hit target, hover wash, keyboard focus ring):

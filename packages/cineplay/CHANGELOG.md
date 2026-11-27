@@ -1,3 +1,11 @@
+## Unreleased
+
+- Add `CineplayTheme` / `CineplayThemeData`: one inherited theme for the player chrome, settings menu, control buttons, and app-owned menus. `FVideoPlayer.chromeStyle`, `accentColor`, and `backgroundColor` are now optional overrides of the theme.
+- Replace the control glyphs with a rounded icon set, exposed as `CineplayIcon` / `CineplayGlyph` (adds `more`, `hideControls`, and `check`). Themes can swap individual glyphs with `glyphBuilder`.
+- Icon controls now show a circular hover and focus wash.
+- Add `CineplayMenuSurface`, `CineplayMenuItem`, `CineplayMenuSection`, and `CineplayMenuDivider`; `CineplaySettingsMenu` is built from them and shows a check on selected tracks.
+- `FVideoChromeStyle` now compares by value.
+
 ## 0.7.0
 
 - Rename package from `f_videoplayer` to `cineplay` for pub.dev publication.

@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:video_player/video_player.dart';
 
+import 'cineplay_icon.dart';
+import 'cineplay_theme.dart';
 import 'desktop_video_windows.dart';
 import 'video_models.dart';
 import 'video_slider.dart';
@@ -191,6 +193,62 @@ class FVideoChromeStyle {
   /// Gaps between center transports in compact and wide layouts.
   final double compactTransportSpacing;
   final double wideTransportSpacing;
+
+  @override
+  bool operator ==(Object other) =>
+      other is FVideoChromeStyle &&
+      other.foregroundColor == foregroundColor &&
+      other.iconShadowColor == iconShadowColor &&
+      other.iconShadowBlurRadius == iconShadowBlurRadius &&
+      other.iconShadowOffset == iconShadowOffset &&
+      other.transportBackgroundColor == transportBackgroundColor &&
+      other.primaryTransportBackgroundColor ==
+          primaryTransportBackgroundColor &&
+      other.transportBorderColor == transportBorderColor &&
+      other.transportBorderWidth == transportBorderWidth &&
+      other.transportShadowColor == transportShadowColor &&
+      other.transportShadowBlurRadius == transportShadowBlurRadius &&
+      other.transportShadowOffset == transportShadowOffset &&
+      other.focusColor == focusColor &&
+      other.hoverColor == hoverColor &&
+      other.topScrimColor == topScrimColor &&
+      other.bottomScrimColor == bottomScrimColor &&
+      other.bufferedTrackColor == bufferedTrackColor &&
+      other.inactiveTrackColor == inactiveTrackColor &&
+      other.compactTransportButtonSize == compactTransportButtonSize &&
+      other.compactPrimaryTransportButtonSize ==
+          compactPrimaryTransportButtonSize &&
+      other.wideTransportButtonSize == wideTransportButtonSize &&
+      other.widePrimaryTransportButtonSize == widePrimaryTransportButtonSize &&
+      other.compactTransportSpacing == compactTransportSpacing &&
+      other.wideTransportSpacing == wideTransportSpacing;
+
+  @override
+  int get hashCode => Object.hashAll([
+    foregroundColor,
+    iconShadowColor,
+    iconShadowBlurRadius,
+    iconShadowOffset,
+    transportBackgroundColor,
+    primaryTransportBackgroundColor,
+    transportBorderColor,
+    transportBorderWidth,
+    transportShadowColor,
+    transportShadowBlurRadius,
+    transportShadowOffset,
+    focusColor,
+    hoverColor,
+    topScrimColor,
+    bottomScrimColor,
+    bufferedTrackColor,
+    inactiveTrackColor,
+    compactTransportButtonSize,
+    compactPrimaryTransportButtonSize,
+    wideTransportButtonSize,
+    widePrimaryTransportButtonSize,
+    compactTransportSpacing,
+    wideTransportSpacing,
+  ]);
 }
 
 enum FVideoLifecycleBehavior { pauseAndResume, pause, delegateToController }
@@ -426,9 +484,9 @@ class FVideoPlayer extends StatefulWidget {
     this.onFullscreenChanged,
     this.onPictureInPictureChanged,
     this.labels = const FVideoPlayerLabels(),
-    this.chromeStyle = const FVideoChromeStyle(),
-    this.accentColor = const Color(0xFFFFFFFF),
-    this.backgroundColor = const Color(0xFF000000),
+    this.chromeStyle,
+    this.accentColor,
+    this.backgroundColor,
     this.controller,
     this.controllerBuilder,
     this.lifecycleBehavior = FVideoLifecycleBehavior.pauseAndResume,
@@ -529,10 +587,15 @@ class FVideoPlayer extends StatefulWidget {
 
   /// Visual configuration for the package's default ready chrome.
   ///
-  /// This has no effect when [chromeBuilder] replaces that chrome.
-  final FVideoChromeStyle chromeStyle;
-  final Color accentColor;
-  final Color backgroundColor;
+  /// This has no effect when [chromeBuilder] replaces that chrome. `null`
+  /// uses [CineplayThemeData.chrome] from the nearest [CineplayTheme].
+  final FVideoChromeStyle? chromeStyle;
+
+  /// Timeline progress color. `null` uses [CineplayThemeData.accentColor].
+  final Color? accentColor;
+
+  /// Letterbox color. `null` uses [CineplayThemeData.videoBackgroundColor].
+  final Color? backgroundColor;
 
   /// Optional preconfigured controller, primarily for custom platform backends.
   /// The caller retains ownership when supplied. A caller-owned controller's
@@ -2188,7 +2251,7 @@ class _FVideoPlayerState extends State<FVideoPlayer>
               }
             },
             child: ColoredBox(
-              color: widget.backgroundColor,
+              color: widget.backgroundColor ?? _theme.videoBackgroundColor,
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final mediaSize = MediaQuery.maybeSizeOf(context);
@@ -2611,7 +2674,7 @@ class _FVideoPlayerState extends State<FVideoPlayer>
     final safeEnd = textDirection == TextDirection.ltr
         ? safePadding.right
         : safePadding.left;
-    final chromeStyle = widget.chromeStyle;
+    final chromeStyle = _chromeStyle;
     final showsCloseButton =
         widget.onClose != null &&
         (widget.showCloseButton ?? !FVideoDesktopWindows.isCurrentWindow);
@@ -2644,7 +2707,7 @@ class _FVideoPlayerState extends State<FVideoPlayer>
               child: FocusTraversalOrder(
                 order: const NumericFocusOrder(1),
                 child: _controlButton(
-                  glyph: _Glyph.close,
+                  glyph: CineplayGlyph.close,
                   label: widget.labels.close,
                   onTap: widget.onClose!,
                   size: 42,
@@ -2680,7 +2743,8 @@ class _FVideoPlayerState extends State<FVideoPlayer>
                                 bufferedValue: buffered,
                                 trackHeight: wide ? 4 : 3,
                                 thumbRadius: wide ? 7 : 6,
-                                activeColor: widget.accentColor,
+                                activeColor:
+                                    widget.accentColor ?? _theme.accentColor,
                                 bufferedColor: chromeStyle.bufferedTrackColor,
                                 inactiveColor: chromeStyle.inactiveTrackColor,
                                 markerFractions: durationMs > 0
@@ -2823,7 +2887,7 @@ class _FVideoPlayerState extends State<FVideoPlayer>
       children: [
         if (mergeTransport && widget.onPrevious != null) ...[
           _controlButton(
-            glyph: _Glyph.previous,
+            glyph: CineplayGlyph.previous,
             label: widget.labels.previous,
             onTap: _requestPrevious,
             filled: true,
@@ -2832,7 +2896,7 @@ class _FVideoPlayerState extends State<FVideoPlayer>
         ],
         if (mergeTransport)
           _controlButton(
-            glyph: value.isPlaying ? _Glyph.pause : _Glyph.play,
+            glyph: value.isPlaying ? CineplayGlyph.pause : CineplayGlyph.play,
             label: value.isPlaying ? widget.labels.pause : widget.labels.play,
             onTap: _togglePlayback,
             filled: true,
@@ -2841,7 +2905,7 @@ class _FVideoPlayerState extends State<FVideoPlayer>
         if (mergeTransport && widget.onNext != null) ...[
           const SizedBox(width: 4),
           _controlButton(
-            glyph: _Glyph.next,
+            glyph: CineplayGlyph.next,
             label: widget.labels.next,
             onTap: _requestNext,
             filled: true,
@@ -2850,7 +2914,7 @@ class _FVideoPlayerState extends State<FVideoPlayer>
         if (showMute) ...[
           if (mergeTransport) const SizedBox(width: 4),
           _controlButton(
-            glyph: _volume == 0 ? _Glyph.muted : _Glyph.volume,
+            glyph: _volume == 0 ? CineplayGlyph.muted : CineplayGlyph.volume,
             label: _volume == 0 ? widget.labels.unmute : widget.labels.mute,
             toggled: _volume == 0,
             onTap: () => unawaited(_toggleMute()),
@@ -2865,8 +2929,8 @@ class _FVideoPlayerState extends State<FVideoPlayer>
               value: _volume,
               trackHeight: 3,
               thumbRadius: 5,
-              activeColor: widget.chromeStyle.foregroundColor,
-              inactiveColor: widget.chromeStyle.inactiveTrackColor,
+              activeColor: _chromeStyle.foregroundColor,
+              inactiveColor: _chromeStyle.inactiveTrackColor,
               semanticLabel: widget.labels.volume,
               semanticValue: '${(_volume * 100).round()}%',
               keyboardStep: widget.volumeStep,
@@ -2886,17 +2950,17 @@ class _FVideoPlayerState extends State<FVideoPlayer>
               softWrap: false,
               style: TextStyle(
                 inherit: false,
-                color: widget.chromeStyle.foregroundColor,
+                color: _chromeStyle.foregroundColor,
                 fontSize: wide ? 13 : 12,
                 fontWeight: FontWeight.normal,
                 decoration: TextDecoration.none,
                 fontFeatures: const [FontFeature.tabularFigures()],
                 shadows: [
-                  if (widget.chromeStyle.iconShadowColor.a > 0)
+                  if (_chromeStyle.iconShadowColor.a > 0)
                     Shadow(
-                      color: widget.chromeStyle.iconShadowColor,
-                      blurRadius: widget.chromeStyle.iconShadowBlurRadius,
-                      offset: widget.chromeStyle.iconShadowOffset,
+                      color: _chromeStyle.iconShadowColor,
+                      blurRadius: _chromeStyle.iconShadowBlurRadius,
+                      offset: _chromeStyle.iconShadowOffset,
                     ),
                 ],
               ),
@@ -2911,7 +2975,7 @@ class _FVideoPlayerState extends State<FVideoPlayer>
               label: widget.labels.speed,
               text: '${_speed.toStringAsFixed(_speed % 1 == 0 ? 0 : 2)}x',
               onTap: _cycleSpeed,
-              style: widget.chromeStyle,
+              style: _chromeStyle,
             ),
           ),
         if (showBottomTrailing)
@@ -2924,8 +2988,8 @@ class _FVideoPlayerState extends State<FVideoPlayer>
         if (showPictureInPicture)
           _controlButton(
             glyph: widget.isPictureInPicture
-                ? _Glyph.exitPictureInPicture
-                : _Glyph.pictureInPicture,
+                ? CineplayGlyph.exitPictureInPicture
+                : CineplayGlyph.pictureInPicture,
             label: widget.isPictureInPicture
                 ? widget.labels.exitPictureInPicture
                 : widget.labels.pictureInPicture,
@@ -2937,8 +3001,8 @@ class _FVideoPlayerState extends State<FVideoPlayer>
         if (showFullscreen)
           _controlButton(
             glyph: widget.isFullscreen
-                ? _Glyph.exitFullscreen
-                : _Glyph.fullscreen,
+                ? CineplayGlyph.exitFullscreen
+                : CineplayGlyph.fullscreen,
             label: widget.isFullscreen
                 ? widget.labels.exitFullscreen
                 : widget.labels.fullscreen,
@@ -2952,7 +3016,7 @@ class _FVideoPlayerState extends State<FVideoPlayer>
   Widget _transportControls(VideoPlayerValue value, bool wide) {
     final previous = widget.onPrevious;
     final next = widget.onNext;
-    final style = widget.chromeStyle;
+    final style = _chromeStyle;
     final sideSize = wide
         ? style.wideTransportButtonSize
         : style.compactTransportButtonSize;
@@ -2969,7 +3033,7 @@ class _FVideoPlayerState extends State<FVideoPlayer>
         children: [
           if (previous != null) ...[
             _controlButton(
-              glyph: _Glyph.previous,
+              glyph: CineplayGlyph.previous,
               label: widget.labels.previous,
               onTap: _requestPrevious,
               size: sideSize,
@@ -2978,7 +3042,7 @@ class _FVideoPlayerState extends State<FVideoPlayer>
             SizedBox(width: spacing),
           ],
           _controlButton(
-            glyph: value.isPlaying ? _Glyph.pause : _Glyph.play,
+            glyph: value.isPlaying ? CineplayGlyph.pause : CineplayGlyph.play,
             label: value.isPlaying ? widget.labels.pause : widget.labels.play,
             onTap: _togglePlayback,
             size: primarySize,
@@ -2988,7 +3052,7 @@ class _FVideoPlayerState extends State<FVideoPlayer>
           if (next != null) ...[
             SizedBox(width: spacing),
             _controlButton(
-              glyph: _Glyph.next,
+              glyph: CineplayGlyph.next,
               label: widget.labels.next,
               onTap: _requestNext,
               size: sideSize,
@@ -3115,8 +3179,12 @@ class _FVideoPlayerState extends State<FVideoPlayer>
     );
   }
 
+  CineplayThemeData get _theme => CineplayTheme.of(context);
+
+  FVideoChromeStyle get _chromeStyle => widget.chromeStyle ?? _theme.chrome;
+
   Widget _controlButton({
-    required _Glyph glyph,
+    required CineplayGlyph glyph,
     required String label,
     required VoidCallback onTap,
     double size = 40,
@@ -3133,7 +3201,7 @@ class _FVideoPlayerState extends State<FVideoPlayer>
     prominent: prominent,
     busy: busy,
     toggled: toggled,
-    style: widget.chromeStyle,
+    style: _chromeStyle,
   );
 
   static String _format(Duration value) {
@@ -3266,252 +3334,6 @@ final class _FVideoActions implements FVideoActions {
       _active ? _state._previousChapter() : Future.value();
 }
 
-enum _Glyph {
-  play,
-  pause,
-  previous,
-  next,
-  volume,
-  muted,
-  pictureInPicture,
-  exitPictureInPicture,
-  fullscreen,
-  exitFullscreen,
-  close,
-}
-
-class _GlyphPainter extends CustomPainter {
-  const _GlyphPainter(
-    this.glyph,
-    this.color, {
-    this.shadowColor = const Color(0x00000000),
-    this.shadowBlurRadius = 0,
-    this.shadowOffset = Offset.zero,
-  });
-
-  final _Glyph glyph;
-  final Color color;
-  final Color shadowColor;
-  final double shadowBlurRadius;
-  final Offset shadowOffset;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final strokeWidth = math.max(1.8, size.width * 0.09);
-    if (shadowColor.a > 0) {
-      final shadowPaint = Paint()
-        ..color = shadowColor
-        ..strokeWidth = strokeWidth
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round;
-      if (shadowBlurRadius > 0) {
-        shadowPaint.maskFilter = MaskFilter.blur(
-          BlurStyle.normal,
-          shadowBlurRadius * 0.5,
-        );
-      }
-      canvas.save();
-      canvas.translate(shadowOffset.dx, shadowOffset.dy);
-      _paintGlyph(canvas, size, shadowPaint);
-      canvas.restore();
-    }
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    _paintGlyph(canvas, size, paint);
-  }
-
-  void _paintGlyph(Canvas canvas, Size size, Paint paint) {
-    paint.style = PaintingStyle.stroke;
-    final w = size.width;
-    final h = size.height;
-    switch (glyph) {
-      case _Glyph.play:
-        canvas.drawPath(
-          Path()
-            ..moveTo(w * 0.32, h * 0.16)
-            ..lineTo(w * 0.78, h * 0.5)
-            ..lineTo(w * 0.32, h * 0.84)
-            ..close(),
-          paint..style = PaintingStyle.fill,
-        );
-      case _Glyph.pause:
-        paint.style = PaintingStyle.fill;
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(w * 0.26, h * 0.18, w * 0.16, h * 0.64),
-            Radius.circular(w * 0.04),
-          ),
-          paint,
-        );
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(w * 0.58, h * 0.18, w * 0.16, h * 0.64),
-            Radius.circular(w * 0.04),
-          ),
-          paint,
-        );
-      case _Glyph.previous:
-        paint.style = PaintingStyle.fill;
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(w * 0.2, h * 0.2, w * 0.1, h * 0.6),
-            Radius.circular(w * 0.025),
-          ),
-          paint,
-        );
-        canvas.drawPath(
-          Path()
-            ..moveTo(w * 0.76, h * 0.18)
-            ..lineTo(w * 0.32, h * 0.5)
-            ..lineTo(w * 0.76, h * 0.82)
-            ..close(),
-          paint,
-        );
-      case _Glyph.next:
-        paint.style = PaintingStyle.fill;
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(w * 0.7, h * 0.2, w * 0.1, h * 0.6),
-            Radius.circular(w * 0.025),
-          ),
-          paint,
-        );
-        canvas.drawPath(
-          Path()
-            ..moveTo(w * 0.24, h * 0.18)
-            ..lineTo(w * 0.68, h * 0.5)
-            ..lineTo(w * 0.24, h * 0.82)
-            ..close(),
-          paint,
-        );
-      case _Glyph.volume:
-      case _Glyph.muted:
-        canvas.drawPath(
-          Path()
-            ..moveTo(w * 0.14, h * 0.4)
-            ..lineTo(w * 0.34, h * 0.4)
-            ..lineTo(w * 0.55, h * 0.2)
-            ..lineTo(w * 0.55, h * 0.8)
-            ..lineTo(w * 0.34, h * 0.6)
-            ..lineTo(w * 0.14, h * 0.6)
-            ..close(),
-          paint,
-        );
-        if (glyph == _Glyph.volume) {
-          canvas.drawArc(
-            Rect.fromCenter(
-              center: Offset(w * 0.54, h * 0.5),
-              width: w * 0.56,
-              height: h * 0.62,
-            ),
-            -math.pi / 3,
-            math.pi * 2 / 3,
-            false,
-            paint,
-          );
-        } else {
-          canvas.drawLine(
-            Offset(w * 0.68, h * 0.35),
-            Offset(w * 0.9, h * 0.65),
-            paint,
-          );
-          canvas.drawLine(
-            Offset(w * 0.9, h * 0.35),
-            Offset(w * 0.68, h * 0.65),
-            paint,
-          );
-        }
-      case _Glyph.pictureInPicture:
-      case _Glyph.exitPictureInPicture:
-        final outer = RRect.fromRectAndRadius(
-          Rect.fromLTWH(w * 0.12, h * 0.2, w * 0.76, h * 0.6),
-          Radius.circular(w * 0.08),
-        );
-        canvas.drawRRect(outer, paint);
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(w * 0.5, h * 0.5, w * 0.27, h * 0.2),
-            Radius.circular(w * 0.035),
-          ),
-          paint,
-        );
-        if (glyph == _Glyph.exitPictureInPicture) {
-          canvas.drawPath(
-            Path()
-              ..moveTo(w * 0.53, h * 0.5)
-              ..lineTo(w * 0.35, h * 0.34)
-              ..moveTo(w * 0.35, h * 0.34)
-              ..lineTo(w * 0.36, h * 0.5)
-              ..moveTo(w * 0.35, h * 0.34)
-              ..lineTo(w * 0.51, h * 0.35),
-            paint,
-          );
-        }
-      case _Glyph.fullscreen:
-      case _Glyph.exitFullscreen:
-        final inset = w * 0.16;
-        final length = w * 0.25;
-        if (glyph == _Glyph.fullscreen) {
-          canvas.drawPath(
-            Path()
-              ..moveTo(inset + length, inset)
-              ..lineTo(inset, inset)
-              ..lineTo(inset, inset + length)
-              ..moveTo(w - inset - length, inset)
-              ..lineTo(w - inset, inset)
-              ..lineTo(w - inset, inset + length)
-              ..moveTo(inset, h - inset - length)
-              ..lineTo(inset, h - inset)
-              ..lineTo(inset + length, h - inset)
-              ..moveTo(w - inset - length, h - inset)
-              ..lineTo(w - inset, h - inset)
-              ..lineTo(w - inset, h - inset - length),
-            paint,
-          );
-        } else {
-          canvas.drawPath(
-            Path()
-              ..moveTo(inset, inset + length)
-              ..lineTo(inset + length, inset + length)
-              ..lineTo(inset + length, inset)
-              ..moveTo(w - inset, inset + length)
-              ..lineTo(w - inset - length, inset + length)
-              ..lineTo(w - inset - length, inset)
-              ..moveTo(inset + length, h - inset)
-              ..lineTo(inset + length, h - inset - length)
-              ..lineTo(inset, h - inset - length)
-              ..moveTo(w - inset - length, h - inset)
-              ..lineTo(w - inset - length, h - inset - length)
-              ..lineTo(w - inset, h - inset - length),
-            paint,
-          );
-        }
-      case _Glyph.close:
-        canvas.drawLine(
-          Offset(w * 0.2, h * 0.2),
-          Offset(w * 0.8, h * 0.8),
-          paint,
-        );
-        canvas.drawLine(
-          Offset(w * 0.8, h * 0.2),
-          Offset(w * 0.2, h * 0.8),
-          paint,
-        );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_GlyphPainter oldDelegate) =>
-      oldDelegate.glyph != glyph ||
-      oldDelegate.color != color ||
-      oldDelegate.shadowColor != shadowColor ||
-      oldDelegate.shadowBlurRadius != shadowBlurRadius ||
-      oldDelegate.shadowOffset != shadowOffset;
-}
-
 class _PlayerControlButton extends StatelessWidget {
   const _PlayerControlButton({
     required this.glyph,
@@ -3525,7 +3347,7 @@ class _PlayerControlButton extends StatelessWidget {
     required this.style,
   });
 
-  final _Glyph glyph;
+  final CineplayGlyph glyph;
   final String label;
   final VoidCallback onTap;
   final double size;
@@ -3537,12 +3359,14 @@ class _PlayerControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final glyphFactor = prominent ? 0.56 : (filled ? 0.50 : 0.48);
+    // Line glyphs read lighter than solid ones, so they get a slightly larger
+    // canvas; the primary play/pause is the largest solid shape.
+    final glyphFactor = prominent ? 0.5 : (filled ? 0.44 : 0.5);
     return _FocusableTapRegion(
       label: label,
       toggled: toggled,
       onTap: busy ? null : onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: CineplayTheme.of(context).controlRadiusFor(size),
       focusColor: style.focusColor,
       hoverColor: style.hoverColor,
       child: SizedBox(
@@ -3554,15 +3378,17 @@ class _PlayerControlButton extends StatelessWidget {
                   dimension: size * 0.4,
                   child: _ActivityIndicator(color: style.foregroundColor),
                 )
-              : CustomPaint(
-                  size: Size.square(size * glyphFactor),
-                  painter: _GlyphPainter(
-                    glyph,
-                    style.foregroundColor,
-                    shadowColor: style.iconShadowColor,
-                    shadowBlurRadius: style.iconShadowBlurRadius,
-                    shadowOffset: style.iconShadowOffset,
-                  ),
+              : CineplayIcon(
+                  glyph,
+                  size: size * glyphFactor,
+                  color: style.foregroundColor,
+                  shadow: style.iconShadowColor.a > 0
+                      ? Shadow(
+                          color: style.iconShadowColor,
+                          blurRadius: style.iconShadowBlurRadius,
+                          offset: style.iconShadowOffset,
+                        )
+                      : null,
                 ),
         ),
       ),
@@ -3587,7 +3413,7 @@ class _BareTextControlButton extends StatelessWidget {
   Widget build(BuildContext context) => _FocusableTapRegion(
     label: label,
     onTap: onTap,
-    borderRadius: BorderRadius.circular(6),
+    borderRadius: BorderRadius.circular(22),
     focusColor: style.focusColor,
     hoverColor: style.hoverColor,
     child: Padding(

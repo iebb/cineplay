@@ -3,11 +3,15 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'cineplay_icon.dart';
+import 'cineplay_theme.dart';
 import 'video_models.dart';
 import 'video_player.dart';
 
 /// A dependency-free, keyboard-accessible interactive surface for Cineplay
 /// chrome controls (44x44 minimum hit target, hover wash, and focus ring).
+///
+/// Unset colors and radius come from the nearest [CineplayTheme].
 class CineplayControlButton extends StatefulWidget {
   const CineplayControlButton({
     super.key,
@@ -16,10 +20,10 @@ class CineplayControlButton extends StatefulWidget {
     required this.child,
     this.toggled = false,
     this.minSize = 44,
-    this.borderRadius = 10,
+    this.borderRadius,
     this.backgroundColor = const Color(0x00000000),
-    this.hoverColor = const Color(0x26FFFFFF),
-    this.focusColor = const Color(0xFFFFFFFF),
+    this.hoverColor,
+    this.focusColor,
     this.padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
   });
 
@@ -28,10 +32,13 @@ class CineplayControlButton extends StatefulWidget {
   final Widget child;
   final bool toggled;
   final double minSize;
-  final double borderRadius;
+
+  /// `null` makes the control circular (or follows
+  /// [CineplayThemeData.controlBorderRadius]).
+  final double? borderRadius;
   final Color backgroundColor;
-  final Color hoverColor;
-  final Color focusColor;
+  final Color? hoverColor;
+  final Color? focusColor;
   final EdgeInsetsGeometry padding;
 
   @override
@@ -44,8 +51,15 @@ class _CineplayControlButtonState extends State<CineplayControlButton> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = CineplayTheme.of(context);
     final enabled = widget.onTap != null;
-    final bg = _hovered && enabled ? widget.hoverColor : widget.backgroundColor;
+    final hover = widget.hoverColor ?? theme.chrome.hoverColor;
+    final bg = _hovered && enabled
+        ? Color.alphaBlend(hover, widget.backgroundColor)
+        : widget.backgroundColor;
+    final radius = widget.borderRadius == null
+        ? theme.controlRadiusFor(widget.minSize)
+        : BorderRadius.circular(widget.borderRadius!);
     return Semantics(
       button: true,
       enabled: enabled,
@@ -77,18 +91,21 @@ class _CineplayControlButtonState extends State<CineplayControlButton> {
                 minWidth: widget.minSize,
                 minHeight: widget.minSize,
               ),
-              child: DecoratedBox(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                curve: Curves.easeOut,
                 decoration: BoxDecoration(
                   color: bg,
-                  borderRadius: BorderRadius.circular(widget.borderRadius),
-                  border: _focused
-                      ? Border.all(color: widget.focusColor, width: 1.5)
-                      : null,
+                  borderRadius: radius,
+                  border: Border.all(
+                    color: _focused
+                        ? widget.focusColor ?? theme.chrome.focusColor
+                        : const Color(0x00000000),
+                    width: 1.5,
+                  ),
                 ),
-                child: Padding(
-                  padding: widget.padding,
-                  child: Center(widthFactor: 1, child: widget.child),
-                ),
+                padding: widget.padding,
+                child: Center(widthFactor: 1, child: widget.child),
               ),
             ),
           ),
@@ -98,10 +115,162 @@ class _CineplayControlButtonState extends State<CineplayControlButton> {
   }
 }
 
+/// A floating panel in the current [CineplayTheme]: surface color, hairline
+/// border, layered shadow, and concentric inner padding.
+class CineplayMenuSurface extends StatelessWidget {
+  const CineplayMenuSurface({
+    super.key,
+    required this.children,
+    this.width = 232,
+    this.maxHeight = 360,
+  });
+
+  final List<Widget> children;
+  final double width;
+  final double maxHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = CineplayTheme.of(context);
+    return DefaultTextStyle(
+      style: theme.labelStyle,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: width, maxHeight: maxHeight),
+        child: DecoratedBox(
+          decoration: theme.surfaceDecoration,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(theme.surfaceRadius),
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(theme.surfacePadding),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One row of a [CineplayMenuSurface]: optional leading glyph, a label, and an
+/// optional trailing value. A selected row without a value shows a check.
+class CineplayMenuItem extends StatelessWidget {
+  const CineplayMenuItem({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.icon,
+    this.value,
+    this.selected = false,
+    this.semanticLabel,
+  });
+
+  final String label;
+  final VoidCallback? onTap;
+  final CineplayGlyph? icon;
+  final String? value;
+  final bool selected;
+  final String? semanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = CineplayTheme.of(context);
+    final accent = theme.accentColor;
+    final value = this.value;
+    final labelColor = selected ? accent : theme.textColor;
+    return CineplayControlButton(
+      label:
+          semanticLabel ??
+          (value == null || value.isEmpty ? label : '$label, $value'),
+      toggled: selected,
+      onTap: onTap,
+      minSize: theme.itemHeight,
+      borderRadius: theme.concentricItemRadius,
+      hoverColor: theme.itemHoverColor,
+      focusColor: accent,
+      padding: EdgeInsets.symmetric(horizontal: icon == null ? 12 : 10),
+      child: Row(
+        children: [
+          if (icon != null) ...[
+            CineplayIcon(
+              icon!,
+              size: 22,
+              color: selected ? accent : theme.textColor.withValues(alpha: 0.8),
+            ),
+            const SizedBox(width: 12),
+          ],
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.labelStyle.copyWith(
+                color: labelColor,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
+          ),
+          if (value != null && value.isNotEmpty) ...[
+            const SizedBox(width: 12),
+            Text(
+              value,
+              style: theme.labelStyle.copyWith(
+                color: selected ? accent : theme.secondaryTextColor,
+                fontSize: 13,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ] else if (selected) ...[
+            const SizedBox(width: 12),
+            CineplayIcon(CineplayGlyph.check, size: 16, color: accent),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A small uppercase heading inside a [CineplayMenuSurface].
+class CineplayMenuSection extends StatelessWidget {
+  const CineplayMenuSection(this.title, {super.key});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = CineplayTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+      child: Semantics(
+        header: true,
+        child: Text(title.toUpperCase(), style: theme.sectionStyle),
+      ),
+    );
+  }
+}
+
+/// A hairline separator inside a [CineplayMenuSurface].
+class CineplayMenuDivider extends StatelessWidget {
+  const CineplayMenuDivider({super.key});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+    child: SizedBox(
+      height: 1,
+      child: ColoredBox(color: CineplayTheme.of(context).dividerColor),
+    ),
+  );
+}
+
 /// Ready-to-use, zero-Material/Cupertino settings panel for [FVideoPlayer].
 ///
 /// Exposes one-click playback speed pills, loop toggle, Fit/Fill aspect mode,
 /// 90° rotation, chapter jumping, and optional quality/audio/subtitle pickers.
+/// Colors, radii, and type come from the nearest [CineplayTheme].
 class CineplaySettingsMenu extends StatelessWidget {
   const CineplaySettingsMenu({
     super.key,
@@ -117,7 +286,7 @@ class CineplaySettingsMenu extends StatelessWidget {
     this.selectedSubtitleTrackId,
     this.onSelectSubtitleTrack,
     this.onCaptureFrame,
-    this.accentColor = const Color(0xFF38BDF8),
+    this.accentColor,
     this.width = 264,
     this.maxHeight = 360,
   });
@@ -134,248 +303,121 @@ class CineplaySettingsMenu extends StatelessWidget {
   final int? selectedSubtitleTrackId;
   final ValueChanged<FVideoSubtitleTrack?>? onSelectSubtitleTrack;
   final VoidCallback? onCaptureFrame;
-  final Color accentColor;
+
+  /// Overrides [CineplayThemeData.accentColor] for this menu only.
+  final Color? accentColor;
   final double width;
   final double maxHeight;
 
   @override
   Widget build(BuildContext context) {
+    final inherited = CineplayTheme.of(context);
+    final theme = accentColor == null
+        ? inherited
+        : inherited.copyWith(accentColor: accentColor);
     final snapshot = scope.snapshot;
     final actions = scope.actions;
     final currentSpeed = snapshot.value.playbackSpeed;
     final rotationDegrees = (snapshot.rotationQuarterTurns & 3) * 90;
 
-    return DefaultTextStyle(
-      style: const TextStyle(
-        color: Color(0xFFFFFFFF),
-        fontSize: 13,
-        fontWeight: FontWeight.w500,
-        decoration: TextDecoration.none,
-      ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: width, maxHeight: maxHeight),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: const Color(0xEB14161B),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0x2EFFFFFF), width: 1),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x88000000),
-                blurRadius: 28,
-                offset: Offset(0, 10),
-              ),
+    return CineplayTheme(
+      data: theme,
+      child: CineplayMenuSurface(
+        width: width,
+        maxHeight: maxHeight,
+        children: [
+          const CineplayMenuSection('Speed'),
+          _PillRow(
+            children: [
+              for (final speed in speeds)
+                _Pill(
+                  label: _formatSpeed(speed),
+                  selected: (currentSpeed - speed).abs() < 0.01,
+                  onTap: () => unawaited(actions.setPlaybackSpeed(speed)),
+                ),
             ],
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(10),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _sectionLabel('Speed'),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      for (final speed in speeds)
-                        _pill(
-                          label: _formatSpeed(speed),
-                          selected: (currentSpeed - speed).abs() < 0.01,
-                          onTap: () =>
-                              unawaited(actions.setPlaybackSpeed(speed)),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  _divider(),
-                  const SizedBox(height: 6),
-                  _actionRow(
-                    title: 'Loop',
-                    value: snapshot.isLooping ? 'On' : 'Off',
-                    highlighted: snapshot.isLooping,
-                    onTap: () => unawaited(actions.toggleLooping()),
-                  ),
-                  _actionRow(
-                    title: 'Aspect',
-                    value: snapshot.fit == BoxFit.cover ? 'Fill' : 'Fit',
-                    highlighted: snapshot.fit == BoxFit.cover,
-                    onTap: actions.toggleFit,
-                  ),
-                  _actionRow(
-                    title: 'Rotate',
-                    value: '$rotationDegrees°',
-                    highlighted: rotationDegrees != 0,
-                    onTap: actions.rotateClockwise,
-                  ),
-                  if (onCaptureFrame != null)
-                    _actionRow(
-                      title: 'Capture Frame',
-                      value: 'PNG',
-                      onTap: onCaptureFrame!,
-                    ),
-                  if (qualities.isNotEmpty && onSelectQuality != null) ...[
-                    const SizedBox(height: 6),
-                    _divider(),
-                    const SizedBox(height: 8),
-                    _sectionLabel('Quality'),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        for (final quality in qualities)
-                          _pill(
-                            label: quality.label,
-                            selected: quality.id == selectedQualityId,
-                            onTap: () => onSelectQuality!(quality),
-                          ),
-                      ],
-                    ),
-                  ],
-                  if (audioTracks.length > 1 && onSelectAudioTrack != null) ...[
-                    const SizedBox(height: 6),
-                    _divider(),
-                    const SizedBox(height: 8),
-                    _sectionLabel('Audio'),
-                    const SizedBox(height: 4),
-                    for (final track in audioTracks)
-                      _actionRow(
-                        title: track.label,
-                        value: track.id == selectedAudioTrackId ? '✓' : '',
-                        highlighted: track.id == selectedAudioTrackId,
-                        onTap: () => onSelectAudioTrack!(track),
-                      ),
-                  ],
-                  if (subtitleTracks.isNotEmpty &&
-                      onSelectSubtitleTrack != null) ...[
-                    const SizedBox(height: 6),
-                    _divider(),
-                    const SizedBox(height: 8),
-                    _sectionLabel('Subtitles'),
-                    const SizedBox(height: 4),
-                    _actionRow(
-                      title: 'Off',
-                      value: selectedSubtitleTrackId == null ? '✓' : '',
-                      highlighted: selectedSubtitleTrackId == null,
-                      onTap: () => onSelectSubtitleTrack!(null),
-                    ),
-                    for (final track in subtitleTracks)
-                      _actionRow(
-                        title: track.label,
-                        value: track.id == selectedSubtitleTrackId ? '✓' : '',
-                        highlighted: track.id == selectedSubtitleTrackId,
-                        onTap: () => onSelectSubtitleTrack!(track),
-                      ),
-                  ],
-                  if (snapshot.chapters.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    _divider(),
-                    const SizedBox(height: 8),
-                    _sectionLabel('Chapters'),
-                    const SizedBox(height: 4),
-                    for (final chapter in snapshot.chapters)
-                      _actionRow(
-                        title: chapter.title.isEmpty
-                            ? _formatDuration(chapter.position)
-                            : chapter.title,
-                        value: _formatDuration(chapter.position),
-                        highlighted: snapshot.currentChapter == chapter,
-                        onTap: () => unawaited(actions.seekToChapter(chapter)),
-                      ),
-                  ],
-                ],
-              ),
-            ),
+          const CineplayMenuDivider(),
+          CineplayMenuItem(
+            label: 'Loop',
+            value: snapshot.isLooping ? 'On' : 'Off',
+            selected: snapshot.isLooping,
+            onTap: () => unawaited(actions.toggleLooping()),
           ),
-        ),
+          CineplayMenuItem(
+            label: 'Aspect',
+            value: snapshot.fit == BoxFit.cover ? 'Fill' : 'Fit',
+            selected: snapshot.fit == BoxFit.cover,
+            onTap: actions.toggleFit,
+          ),
+          CineplayMenuItem(
+            label: 'Rotate',
+            value: '$rotationDegrees°',
+            selected: rotationDegrees != 0,
+            onTap: actions.rotateClockwise,
+          ),
+          if (onCaptureFrame != null)
+            CineplayMenuItem(
+              label: 'Capture Frame',
+              value: 'PNG',
+              onTap: onCaptureFrame,
+            ),
+          if (qualities.isNotEmpty && onSelectQuality != null) ...[
+            const CineplayMenuDivider(),
+            const CineplayMenuSection('Quality'),
+            _PillRow(
+              children: [
+                for (final quality in qualities)
+                  _Pill(
+                    label: quality.label,
+                    selected: quality.id == selectedQualityId,
+                    onTap: () => onSelectQuality!(quality),
+                  ),
+              ],
+            ),
+          ],
+          if (audioTracks.length > 1 && onSelectAudioTrack != null) ...[
+            const CineplayMenuDivider(),
+            const CineplayMenuSection('Audio'),
+            for (final track in audioTracks)
+              CineplayMenuItem(
+                label: track.label,
+                selected: track.id == selectedAudioTrackId,
+                onTap: () => onSelectAudioTrack!(track),
+              ),
+          ],
+          if (subtitleTracks.isNotEmpty && onSelectSubtitleTrack != null) ...[
+            const CineplayMenuDivider(),
+            const CineplayMenuSection('Subtitles'),
+            CineplayMenuItem(
+              label: 'Off',
+              selected: selectedSubtitleTrackId == null,
+              onTap: () => onSelectSubtitleTrack!(null),
+            ),
+            for (final track in subtitleTracks)
+              CineplayMenuItem(
+                label: track.label,
+                selected: track.id == selectedSubtitleTrackId,
+                onTap: () => onSelectSubtitleTrack!(track),
+              ),
+          ],
+          if (snapshot.chapters.isNotEmpty) ...[
+            const CineplayMenuDivider(),
+            const CineplayMenuSection('Chapters'),
+            for (final chapter in snapshot.chapters)
+              CineplayMenuItem(
+                label: chapter.title.isEmpty
+                    ? _formatDuration(chapter.position)
+                    : chapter.title,
+                value: _formatDuration(chapter.position),
+                selected: snapshot.currentChapter == chapter,
+                onTap: () => unawaited(actions.seekToChapter(chapter)),
+              ),
+          ],
+        ],
       ),
     );
   }
-
-  Widget _sectionLabel(String text) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 4),
-    child: Text(
-      text.toUpperCase(),
-      style: const TextStyle(
-        color: Color(0x99FFFFFF),
-        fontSize: 11,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.6,
-      ),
-    ),
-  );
-
-  Widget _divider() =>
-      const SizedBox(height: 1, child: ColoredBox(color: Color(0x1FFFFFFF)));
-
-  Widget _pill({
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) => CineplayControlButton(
-    label: label,
-    toggled: selected,
-    minSize: 32,
-    borderRadius: 8,
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    backgroundColor: selected
-        ? accentColor.withValues(alpha: 0.24)
-        : const Color(0x14FFFFFF),
-    onTap: onTap,
-    child: Text(
-      label,
-      style: TextStyle(
-        color: selected ? accentColor : const Color(0xE6FFFFFF),
-        fontSize: 12,
-        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-      ),
-    ),
-  );
-
-  Widget _actionRow({
-    required String title,
-    required String value,
-    required VoidCallback onTap,
-    bool highlighted = false,
-  }) => CineplayControlButton(
-    label: value.isEmpty ? title : '$title $value',
-    toggled: highlighted,
-    minSize: 36,
-    borderRadius: 8,
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-    onTap: onTap,
-    child: Row(
-      children: [
-        Expanded(
-          child: Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: highlighted ? accentColor : const Color(0xF2FFFFFF),
-              fontSize: 13,
-              fontWeight: highlighted ? FontWeight.w600 : FontWeight.w400,
-            ),
-          ),
-        ),
-        if (value.isNotEmpty) ...[
-          const SizedBox(width: 8),
-          Text(
-            value,
-            style: TextStyle(
-              color: highlighted ? accentColor : const Color(0x99FFFFFF),
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ],
-    ),
-  );
 
   static String _formatSpeed(double speed) {
     final text = speed.toStringAsFixed(2);
@@ -392,5 +434,58 @@ class CineplaySettingsMenu extends StatelessWidget {
     final mm = minutes.toString().padLeft(hours > 0 ? 2 : 1, '0');
     final ss = seconds.toString().padLeft(2, '0');
     return hours > 0 ? '$hours:$mm:$ss' : '$mm:$ss';
+  }
+}
+
+class _PillRow extends StatelessWidget {
+  const _PillRow({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(6, 0, 6, 4),
+    child: Wrap(spacing: 6, runSpacing: 6, children: children),
+  );
+}
+
+/// A stadium-shaped choice chip for short values such as speeds.
+class _Pill extends StatelessWidget {
+  const _Pill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = CineplayTheme.of(context);
+    final accent = theme.accentColor;
+    return CineplayControlButton(
+      label: label,
+      toggled: selected,
+      minSize: 32,
+      borderRadius: 16,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      backgroundColor: selected
+          ? accent.withValues(alpha: 0.2)
+          : theme.itemHoverColor,
+      hoverColor: theme.itemHoverColor,
+      focusColor: accent,
+      onTap: onTap,
+      child: Text(
+        label,
+        style: theme.labelStyle.copyWith(
+          color: selected ? accent : theme.textColor,
+          fontSize: 13,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    );
   }
 }

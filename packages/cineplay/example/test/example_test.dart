@@ -13,7 +13,7 @@ void main() {
     await tester.pumpWidget(const ExampleApp());
     await tester.pump();
 
-    expect(find.text('F Video Player'), findsOneWidget);
+    expect(find.text('Cineplay'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -28,8 +28,10 @@ void main() {
       ),
     ).build(_FakeBuildContext());
 
-    expect(app, isA<WidgetsApp>());
-    expect((app as WidgetsApp).pageRouteBuilder, isNotNull);
+    expect(app, isA<CineplayTheme>());
+    final windowApp = (app as CineplayTheme).child;
+    expect(windowApp, isA<WidgetsApp>());
+    expect((windowApp as WidgetsApp).pageRouteBuilder, isNotNull);
   });
 
   test('custom controllers opt into player-owned lifecycle policy', () {
@@ -47,10 +49,12 @@ void main() {
   test('default chrome example demonstrates styling and inline actions', () {
     final source = File('lib/main.dart').readAsStringSync();
 
-    expect(source, contains('chromeStyle: const FVideoChromeStyle('));
+    expect(source, contains('const exampleTheme = CineplayThemeData('));
+    expect(source, contains('CineplayTheme(\n    data: exampleTheme,'));
     expect(source, contains('topTrailingBuilder: _customChrome'));
     expect(source, contains('_ExampleTopTrailingActions(scope: scope)'));
     expect(source, contains('scope.actions.toggleMute()'));
+    expect(source, contains('CineplayMenuSurface('));
   });
 
   test('default example uses a secure network source', () {

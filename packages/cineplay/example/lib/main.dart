@@ -29,12 +29,15 @@ class ExampleApp extends StatelessWidget {
   const ExampleApp({super.key});
 
   @override
-  Widget build(BuildContext context) => WidgetsApp(
-    color: _Palette.canvas,
-    debugShowCheckedModeBanner: false,
-    title: 'Cineplay',
-    pageRouteBuilder: _buildPageRoute,
-    home: const _ExampleHome(),
+  Widget build(BuildContext context) => CineplayTheme(
+    data: exampleTheme,
+    child: WidgetsApp(
+      color: _Palette.canvas,
+      debugShowCheckedModeBanner: false,
+      title: 'Cineplay',
+      pageRouteBuilder: _buildPageRoute,
+      home: const _ExampleHome(),
+    ),
   );
 }
 
@@ -185,15 +188,6 @@ class _ExampleHomeState extends State<_ExampleHome> {
     height: 720,
     autoplay: false,
     isFullscreen: _fullscreen,
-    accentColor: _Palette.accent,
-    chromeStyle: const FVideoChromeStyle(
-      foregroundColor: _Palette.text,
-      transportBackgroundColor: Color(0xE6151920),
-      primaryTransportBackgroundColor: Color(0xF20C0E12),
-      transportBorderColor: Color(0x73FFFFFF),
-      focusColor: _Palette.accent,
-      hoverColor: Color(0x2861D6C8),
-    ),
     interactionMode: _customChrome
         ? FVideoInteractionMode.delegateToChrome
         : FVideoInteractionMode.builtIn,
@@ -582,63 +576,80 @@ class _ExampleTopTrailingActionsState
     extends State<_ExampleTopTrailingActions> {
   bool _expanded = false;
 
+  void _close() => setState(() => _expanded = false);
+
   @override
   Widget build(BuildContext context) {
     final scope = widget.scope;
+    final theme = CineplayTheme.of(context);
+    final muted = scope.snapshot.value.volume == 0;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 44),
-          child: _DemoButton(
-            label: _expanded ? 'Close player actions' : 'Player actions',
-            selected: _expanded,
-            onPressed: () => setState(() => _expanded = !_expanded),
+        CineplayControlButton(
+          label: 'Player actions',
+          toggled: _expanded,
+          padding: EdgeInsets.zero,
+          backgroundColor: _expanded
+              ? const Color(0x33FFFFFF)
+              : const Color(0x00000000),
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: CineplayIcon(
+            CineplayGlyph.more,
+            size: 22,
+            shadow: _expanded
+                ? null
+                : Shadow(
+                    color: theme.chrome.iconShadowColor,
+                    blurRadius: theme.chrome.iconShadowBlurRadius,
+                    offset: theme.chrome.iconShadowOffset,
+                  ),
           ),
         ),
-        if (_expanded) ...[
-          const SizedBox(height: 8),
-          SizedBox(
-            width: 190,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: const Color(0xF2151920),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0x73FFFFFF)),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x99000000),
-                    blurRadius: 18,
-                    offset: Offset(0, 6),
-                  ),
-                ],
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 160),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: animation,
+            child: ScaleTransition(
+              alignment: AlignmentDirectional.topEnd.resolve(
+                Directionality.of(context),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _DemoButton(
-                      label: scope.snapshot.value.volume == 0
-                          ? 'Restore audio'
-                          : 'Mute audio',
-                      onPressed: () => unawaited(scope.actions.toggleMute()),
-                    ),
-                    const SizedBox(height: 6),
-                    _DemoButton(
-                      label: 'Hide controls',
-                      onPressed: () {
-                        setState(() => _expanded = false);
-                        scope.actions.hideControls();
-                      },
-                    ),
-                  ],
-                ),
-              ),
+              scale: Tween(begin: 0.94, end: 1.0).animate(animation),
+              child: child,
             ),
           ),
-        ],
+          child: !_expanded
+              ? const SizedBox.shrink()
+              : Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: CineplayMenuSurface(
+                    width: 200,
+                    children: [
+                      CineplayMenuItem(
+                        icon: muted
+                            ? CineplayGlyph.volume
+                            : CineplayGlyph.muted,
+                        label: muted ? 'Restore audio' : 'Mute audio',
+                        onTap: () {
+                          _close();
+                          unawaited(scope.actions.toggleMute());
+                        },
+                      ),
+                      CineplayMenuItem(
+                        icon: CineplayGlyph.hideControls,
+                        label: 'Hide controls',
+                        onTap: () {
+                          _close();
+                          scope.actions.hideControls();
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+        ),
       ],
     );
   }
@@ -817,15 +828,18 @@ class ExampleWindow extends StatelessWidget {
   final FVideoDesktopWindowArguments arguments;
 
   @override
-  Widget build(BuildContext context) => WidgetsApp(
-    color: _Palette.black,
-    debugShowCheckedModeBanner: false,
-    title: arguments.title,
-    pageRouteBuilder: _buildPageRoute,
-    home: FVideoDesktopWindowHost(
-      initialArguments: arguments,
-      builder: (context, arguments) =>
-          _ExampleWindowPlayer(arguments: arguments),
+  Widget build(BuildContext context) => CineplayTheme(
+    data: exampleTheme,
+    child: WidgetsApp(
+      color: _Palette.black,
+      debugShowCheckedModeBanner: false,
+      title: arguments.title,
+      pageRouteBuilder: _buildPageRoute,
+      home: FVideoDesktopWindowHost(
+        initialArguments: arguments,
+        builder: (context, arguments) =>
+            _ExampleWindowPlayer(arguments: arguments),
+      ),
     ),
   );
 }
@@ -868,6 +882,22 @@ String _format(Duration duration) {
   final seconds = duration.inSeconds.remainder(60);
   return '$minutes:${seconds.toString().padLeft(2, '0')}';
 }
+
+/// The demo's single theme: every Cineplay surface reads it, so the player
+/// chrome, settings menu, and app-owned popovers stay consistent.
+const exampleTheme = CineplayThemeData(
+  accentColor: _Palette.accent,
+  chrome: FVideoChromeStyle(
+    foregroundColor: _Palette.text,
+    focusColor: _Palette.accent,
+    hoverColor: Color(0x1FFFFFFF),
+  ),
+  surfaceColor: Color(0xF2151920),
+  surfaceBorderColor: Color(0x1AFFFFFF),
+  itemHoverColor: Color(0x14FFFFFF),
+  textColor: _Palette.text,
+  secondaryTextColor: _Palette.subtle,
+);
 
 abstract final class _Palette {
   static const canvas = Color(0xFF0C0E12);
